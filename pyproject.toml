@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "EasiFlux-Desktop"
+version = "0.1.0"
+description = "Professional cryptocurrency contract trading desktop client for EasiCoin."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Akiyy" }]
+dependencies = [
+    "EasiFlux-SDK[websocket]>=0.2.0,<1.0",
+    "PySide6>=6.6",
+    "qasync>=0.27",
+    "keyring>=25.0",
+    "cryptography>=42.0",
+    "pyqtgraph>=0.13",
+    "platformdirs>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-qt>=4.4",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.8",
+    "pyinstaller>=6.0",
+]
+local-sdk = [
+    "EasiFlux-SDK[websocket] @ file:///${PROJECT_ROOT}/../EasiFlux-SDK",
+]
+
+[project.scripts]
+easiflux-desktop = "easiflux_desktop.app:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+qt_api = "pyside6"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+easiflux_desktop = ["../resources/**/*"]

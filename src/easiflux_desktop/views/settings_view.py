@@ -1,0 +1,112 @@
+"""API settings and connection configuration view."""
+
+from __future__ import annotations
+
+import asyncio
+
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
+
+from easiflux_desktop.core.constants import DEFAULT_BASE_URL
+from easiflux_desktop.core.context import AppContext
+from easiflux_desktop.models.config import ApiCredential
+
+
+class SettingsView(QGroupBox):
+    def __init__(self, ctx: AppContext, parent=None) -> None:
+        super().__init__("设置", parent)
+        self._ctx = ctx
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self._api_key = QLineEdit()
+        self._api_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self._api_secret = QLineEdit()
+        self._api_secret.setEchoMode(QLineEdit.EchoMode.Password)
+        self._base_url = QLineEdit(DEFAULT_BASE_URL)
+        self._symbol = QLineEdit(ctx.config_manager.config.active_symbol)
+        self._use_ws = QCheckBox("使用 WebSocket 实时推送")
+        self._use_ws.setChecked(ctx.config_manager.config.use_websocket)
+
+        form.addRow("API Key", self._api_key)
+        form.addRow("API Secret", self._api_secret)
+        form.addRow("Base URL", self._base_url)
+        form.addRow("默认交易对", self._symbol)
+        form.addRow("", self._use_ws)
+        layout.addLayout(form)
+
+        btn_row = QHBoxLayout()
+        save_btn = QPushButton("保存")
+        save_btn.clicked.connect(self._on_save)
+        test_btn = QPushButton("测试连接")
+        test_btn.clicked.connect(lambda: asyncio.create_task(self._on_test()))
+        connect_btn = QPushButton("连接")
+        connect_btn.clicked.connect(lambda: asyncio.create_task(self._on_connect()))
+        btn_row.addWidget(save_btn)
+        btn_row.addWidget(test_btn)
+        btn_row.addWidget(connect_btn)
+        layout.addLayout(btn_row)
+
+        self._status = QLabel("")
+        layout.addWidget(self._status)
+
+        self._load_existing()
+
+    def _load_existing(self) -> None:
+        cred = self._ctx.config_manager.get_credentials()
+        if cred:
+            self._api_key.setText(cred.api_key)
+            self._api_secret.setText(cred.api_secret)
+            self._base_url.setText(cred.base_url)
+
+    def _build_credential(self) -> ApiCredential:
+        return ApiCredential(
+            api_key=self._api_key.text().strip(),
+            api_secret=self._api_secret.text().strip(),
+            base_url=self._base_url.text().strip() or DEFAULT_BASE_URL,
+        )
+
+    def _on_save(self) -> None:
+        cred = self._build_credential()
+        account_id = self._ctx.config_manager.config.active_account_id
+        self._ctx.config_manager.set_credentials(account_id, cred)
+
+        config = self._ctx.config_manager.config
+        config.active_symbol = self._symbol.text().strip()
+        config.use_websocket = self._use_ws.isChecked()
+        self._ctx.config_manager.save_config()
+        self._ctx.market_manager.set_active_symbol(config.active_symbol)
+        self._status.setText("配置已保存")
+
+    async def _on_test(self) -> None:
+        cred = self._build_credential()
+        self._status.setText("测试中...")
+        try:
+            ok = await self._ctx.connection_manager.test_connection(cred)
+            self._status.setText("连接测试成功" if ok else "连接测试失败")
+        except Exception as exc:
+            self._status.setText(f"测试失败: {exc}")
+
+    async def _on_connect(self) -> None:
+        self._on_save()
+        cred = self._build_credential()
+        self._status.setText("连接中...")
+        try:
+            await self._ctx.connection_manager.connect(cred)
+            symbol = self._ctx.config_manager.config.active_symbol
+            await self._ctx.market_manager.start_realtime(symbol)
+            await self._ctx.account_manager.refresh_account(symbol)
+            await self._ctx.trading_manager.refresh_orders(symbol)
+            self._status.setText("已连接")
+        except Exception as exc:
+            self._status.setText(f"连接失败: {exc}")
+            QMessageBox.warning(self, "连接失败", str(exc))

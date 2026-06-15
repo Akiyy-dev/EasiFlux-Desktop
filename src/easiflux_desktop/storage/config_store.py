@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-import tomllib
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+
 from platformdirs import user_config_dir
 
 from easiflux_desktop.core.constants import APP_NAME, APP_ORG, CONFIG_FILENAME

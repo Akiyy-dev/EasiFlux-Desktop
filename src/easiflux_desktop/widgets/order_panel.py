@@ -56,13 +56,10 @@ class OrderPanel(QGroupBox):
         layout.addWidget(self._status)
 
         ctx.event_bus.subscribe("order.created", self._on_order_created)
-        ctx.event_bus.subscribe("error.occurred", self._on_error)
 
     def _on_submit(self) -> None:
         if self._busy:
             return
-        self._busy = True
-        self._submit_btn.setEnabled(False)
         request = PlaceOrderRequest(
             symbol=self._symbol.text().strip(),
             side=self._side.currentText(),
@@ -70,6 +67,11 @@ class OrderPanel(QGroupBox):
             price=self._price.text().strip() or None,
             qty=self._qty.text().strip(),
         )
+        if not self._confirm_order(request):
+            self._status.setText("已取消下单")
+            return
+        self._set_busy(True)
+        self._status.setText("提交订单中...")
         asyncio.create_task(self._place_order(request))
 
     async def _place_order(self, request: PlaceOrderRequest) -> None:
@@ -82,11 +84,29 @@ class OrderPanel(QGroupBox):
         except Exception as exc:
             self._status.setText(str(exc))
         finally:
-            self._busy = False
-            self._submit_btn.setEnabled(True)
+            self._set_busy(False)
+
+    def _confirm_order(self, request: PlaceOrderRequest) -> bool:
+        price = request.price or "市价"
+        message = (
+            f"交易对: {request.symbol}\n"
+            f"方向: {request.side}\n"
+            f"类型: {request.order_type}\n"
+            f"价格: {price}\n"
+            f"数量: {request.qty}\n\n确认提交订单？"
+        )
+        return QMessageBox.question(
+            self,
+            "确认下单",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) == QMessageBox.StandardButton.Yes
+
+    def _set_busy(self, busy: bool) -> None:
+        self._busy = busy
+        self._submit_btn.setEnabled(not busy)
+        self._submit_btn.setText("提交中..." if busy else "下单")
 
     def _on_order_created(self, order) -> None:
         self._status.setText(f"订单 {order.order_id} 状态: {order.status_display}")
-
-    def _on_error(self, error) -> None:
-        QMessageBox.warning(self, "错误", error.user_message)

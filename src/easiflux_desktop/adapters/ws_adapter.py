@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from easiflux_desktop.adapters.model_mapper import ModelMapper
@@ -13,35 +14,57 @@ from easiflux_desktop.core.event_bus import EventBus
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class WsSubscription:
+    channel: str
+    params: dict[str, Any] = field(default_factory=dict)
+    handler: Callable[[dict[str, Any]], Awaitable[None]] | None = None
+
+
 class WsAdapter:
     def __init__(self, factory: SdkClientFactory, event_bus: EventBus) -> None:
         self._factory = factory
         self._event_bus = event_bus
         self._active_symbol: str | None = None
         self._started = False
+        self._subscriptions: dict[tuple[str, tuple[tuple[str, Any], ...]], WsSubscription] = {}
 
     @property
     def is_active(self) -> bool:
         return self._started
+
+    @property
+    def subscription_count(self) -> int:
+        return len(self._subscriptions)
 
     async def start(self) -> None:
         client = self._factory.require_client()
         if not self._started:
             await client.ws.connect()
             self._started = True
+            self._event_bus.publish("websocket.status_changed", "connected", sticky=True)
             logger.info("WebSocket connected")
 
-    async def stop(self) -> None:
+    async def stop(self, *, forget_subscriptions: bool = True) -> None:
         if self._started:
             client = self._factory.client
             if client:
                 await client.ws.close()
             self._started = False
             self._active_symbol = None
+            self._event_bus.publish("websocket.status_changed", "disconnected", sticky=True)
+        if forget_subscriptions:
+            self._subscriptions.clear()
+
+    async def reconnect(self) -> None:
+        subscriptions = list(self._subscriptions.values())
+        await self.stop(forget_subscriptions=False)
+        await self.start()
+        for subscription in subscriptions:
+            await self._subscribe_now(subscription)
+        logger.info("WebSocket reconnected with %s subscriptions", len(subscriptions))
 
     async def subscribe_ticker(self, symbol: str) -> None:
-        await self.start()
-        client = self._factory.require_client()
         self._active_symbol = symbol
 
         async def _on_message(message: dict[str, Any]) -> None:
@@ -53,12 +76,9 @@ class WsAdapter:
             except Exception as exc:
                 logger.debug("Ticker WS parse error: %s", exc)
 
-        await client.ws.subscribe("ticker", {"symbol": symbol}, callback=_on_message)
+        await self._remember_and_subscribe("ticker", {"symbol": symbol}, _on_message)
 
     async def subscribe_depth(self, symbol: str, *, limit: int = 20) -> None:
-        await self.start()
-        client = self._factory.require_client()
-
         async def _on_message(message: dict[str, Any]) -> None:
             try:
                 depth = ModelMapper.depth_from_payload(message, symbol)
@@ -66,21 +86,15 @@ class WsAdapter:
             except Exception as exc:
                 logger.debug("Depth WS parse error: %s", exc)
 
-        await client.ws.subscribe("depth", {"symbol": symbol, "depth": limit}, callback=_on_message)
+        await self._remember_and_subscribe("depth", {"symbol": symbol, "depth": limit}, _on_message)
 
     async def subscribe_orders(self) -> None:
-        await self.start()
-        self._factory.require_client()
         await self._subscribe_private("order", self._on_order)
 
     async def subscribe_positions(self) -> None:
-        await self.start()
-        self._factory.require_client()
         await self._subscribe_private("position", self._on_position)
 
     async def subscribe_balances(self) -> None:
-        await self.start()
-        self._factory.require_client()
         await self._subscribe_private("balance", self._on_balance)
 
     async def subscribe_all(self, symbol: str) -> None:
@@ -91,8 +105,30 @@ class WsAdapter:
         await self.subscribe_balances()
 
     async def _subscribe_private(self, channel: str, handler: Callable[[dict[str, Any]], Awaitable[None]]) -> None:
+        await self._remember_and_subscribe(channel, {}, handler)
+
+    async def _remember_and_subscribe(
+        self,
+        channel: str,
+        params: dict[str, Any],
+        handler: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
+        await self.start()
+        subscription = WsSubscription(channel=channel, params=dict(params), handler=handler)
+        self._subscriptions[self._subscription_key(channel, params)] = subscription
+        await self._subscribe_now(subscription)
+
+    async def _subscribe_now(self, subscription: WsSubscription) -> None:
         client = self._factory.require_client()
-        await client.ws.subscribe(channel, {}, callback=handler)
+        await client.ws.subscribe(
+            subscription.channel,
+            dict(subscription.params),
+            callback=subscription.handler,
+        )
+
+    @staticmethod
+    def _subscription_key(channel: str, params: dict[str, Any]) -> tuple[str, tuple[tuple[str, Any], ...]]:
+        return channel, tuple(sorted(params.items()))
 
     async def _on_order(self, message: dict[str, Any]) -> None:
         try:

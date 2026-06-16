@@ -40,6 +40,7 @@ def _ctx():
 def test_order_panel_cancelled_confirmation_does_not_dispatch(qapp):
     ctx = _ctx()
     panel = OrderPanel(ctx)
+    panel._price.setText("50000")
     panel._confirm_order = lambda request: False
 
     panel._on_submit()

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 
-from easiflux_desktop.core.constants import DEFAULT_BASE_URL, DEFAULT_SYMBOL
+from easiflux_desktop.core.constants import DEFAULT_BASE_URL, DEFAULT_SYMBOL, DEFAULT_WATCHLIST_SYMBOLS
 
 
 class ThemeMode(str, Enum):
@@ -33,6 +33,7 @@ class ApiCredential:
 class AppConfig:
     active_symbol: str = DEFAULT_SYMBOL
     active_account_id: str = "default"
+    watchlist_symbols: list[str] = field(default_factory=lambda: list(DEFAULT_WATCHLIST_SYMBOLS))
     theme: ThemeMode = ThemeMode.DARK
     kline_interval: str = "1"
     use_websocket: bool = True

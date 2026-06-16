@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from easiflux_desktop.core.commands import PlaceOrderCommand
 from easiflux_desktop.core.context import AppContext
+from easiflux_desktop.core.state_store import MarketState
 from easiflux_desktop.models.trading import PlaceOrderRequest
 
 
@@ -57,6 +58,7 @@ class OrderPanel(QGroupBox):
         layout.addWidget(self._status)
 
         ctx.event_bus.subscribe("order.created", self._on_order_created)
+        ctx.event_bus.subscribe("state.market.updated", self._on_market_state)
 
     def _on_submit(self) -> None:
         if self._busy:
@@ -138,3 +140,7 @@ class OrderPanel(QGroupBox):
 
     def _on_order_created(self, order) -> None:
         self._status.setText(f"订单 {order.order_id} 状态: {order.status_display}")
+
+    def _on_market_state(self, state: MarketState) -> None:
+        if not self._symbol.hasFocus() and self._symbol.text().strip().upper() != state.active_symbol:
+            self._symbol.setText(state.active_symbol)

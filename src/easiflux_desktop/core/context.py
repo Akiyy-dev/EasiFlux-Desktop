@@ -15,6 +15,7 @@ from easiflux_desktop.core.commands import (
     LoadKlinesCommand,
     PlaceOrderCommand,
     RefreshAccountCommand,
+    RefreshMarketCommand,
     RefreshOrdersCommand,
     SaveConnectionSettingsCommand,
     SetActiveSymbolCommand,
@@ -135,7 +136,7 @@ class AppContext:
             if command.start_realtime:
                 symbol = ctx.config_manager.config.active_symbol
                 await ctx.market_manager.start_realtime(symbol)
-                await ctx.market_manager.get_klines(symbol)
+                await ctx.market_manager.refresh_snapshot(symbol)
                 await ctx.account_manager.refresh_account(symbol)
                 await ctx.trading_manager.refresh_orders(symbol)
             return ok
@@ -170,9 +171,18 @@ class AppContext:
         async def _load_klines(command: LoadKlinesCommand):
             return await ctx.market_manager.get_klines(command.symbol, command.interval)
 
+        async def _refresh_market(command: RefreshMarketCommand):
+            return await ctx.market_manager.refresh_snapshot(command.symbol)
+
         async def _set_active_symbol(command: SetActiveSymbolCommand) -> str:
-            ctx.market_manager.set_active_symbol(command.symbol)
-            return command.symbol
+            symbol = ctx.market_manager.set_active_symbol(command.symbol)
+            if command.refresh and getattr(ctx.connection_manager, "is_connected", False):
+                await ctx.market_manager.stop_realtime()
+                await ctx.market_manager.start_realtime(symbol)
+                await ctx.market_manager.refresh_snapshot(symbol)
+                await ctx.account_manager.refresh_account(symbol)
+                await ctx.trading_manager.refresh_orders(symbol)
+            return symbol
 
         async def _set_kline_interval(command: SetKlineIntervalCommand):
             config = ctx.config_manager.set_kline_interval(command.interval)
@@ -208,6 +218,7 @@ class AppContext:
         command_bus.register(RefreshOrdersCommand, _refresh_orders)
         command_bus.register(RefreshAccountCommand, _refresh_account)
         command_bus.register(LoadKlinesCommand, _load_klines)
+        command_bus.register(RefreshMarketCommand, _refresh_market)
         command_bus.register(SetActiveSymbolCommand, _set_active_symbol)
         command_bus.register(SetKlineIntervalCommand, _set_kline_interval)
         command_bus.register(UpdateRiskConfigCommand, _update_risk_config)

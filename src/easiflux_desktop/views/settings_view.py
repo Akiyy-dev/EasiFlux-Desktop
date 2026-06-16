@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from easiflux_desktop.core.commands import ConnectCommand, SaveConnectionSettingsCommand, TestConnectionCommand
 from easiflux_desktop.core.constants import DEFAULT_BASE_URL
 from easiflux_desktop.core.context import AppContext
+from easiflux_desktop.core.state_store import MarketState
 from easiflux_desktop.models.config import ApiCredential
 
 
@@ -61,6 +62,7 @@ class SettingsView(QGroupBox):
         layout.addWidget(self._status)
 
         self._load_existing()
+        ctx.event_bus.subscribe("state.market.updated", self._on_market_state)
 
     def _load_existing(self) -> None:
         cred = self._ctx.config_manager.get_credentials()
@@ -154,3 +156,7 @@ class SettingsView(QGroupBox):
         self._connect_btn.setEnabled(not busy)
         if label:
             self._status.setText(label)
+
+    def _on_market_state(self, state: MarketState) -> None:
+        if not self._symbol.hasFocus() and self._symbol.text().strip().upper() != state.active_symbol:
+            self._symbol.setText(state.active_symbol)

@@ -13,7 +13,7 @@ else:
 
 from platformdirs import user_config_dir
 
-from easiflux_desktop.core.constants import APP_NAME, APP_ORG, CONFIG_FILENAME
+from easiflux_desktop.core.constants import APP_NAME, APP_ORG, CONFIG_FILENAME, DEFAULT_WATCHLIST_SYMBOLS
 from easiflux_desktop.models.config import AppConfig, ThemeMode
 
 
@@ -34,6 +34,7 @@ class ConfigStore:
         return AppConfig(
             active_symbol=data.get("active_symbol", "BTCUSDT"),
             active_account_id=data.get("active_account_id", "default"),
+            watchlist_symbols=list(data.get("watchlist_symbols", DEFAULT_WATCHLIST_SYMBOLS)),
             theme=ThemeMode(data.get("theme", "dark")),
             kline_interval=data.get("kline_interval", "1"),
             use_websocket=data.get("use_websocket", True),
@@ -51,6 +52,7 @@ class ConfigStore:
         lines = [
             f'active_symbol = "{config.active_symbol}"',
             f'active_account_id = "{config.active_account_id}"',
+            f"watchlist_symbols = {config.watchlist_symbols!r}",
             f'theme = "{config.theme.value}"',
             f'kline_interval = "{config.kline_interval}"',
             f"use_websocket = {'true' if config.use_websocket else 'false'}",

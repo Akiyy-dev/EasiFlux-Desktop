@@ -8,6 +8,7 @@ import logging
 from easiflux_desktop.adapters.rest_adapter import RestAdapter
 from easiflux_desktop.adapters.ws_adapter import WsAdapter
 from easiflux_desktop.core.constants import TICKER_POLL_INTERVAL_SEC
+from easiflux_desktop.core.errors import ValidationError
 from easiflux_desktop.core.event_bus import EventBus
 from easiflux_desktop.models.market import DesktopDepth, DesktopKline, DesktopTicker
 from easiflux_desktop.services.config_manager import ConfigManager
@@ -37,13 +38,32 @@ class MarketManager:
     def active_symbol(self) -> str:
         return self._active_symbol
 
-    def set_active_symbol(self, symbol: str, *, persist: bool = True) -> None:
-        self._active_symbol = symbol
+    @property
+    def watchlist_symbols(self) -> list[str]:
+        symbols = [self._normalize_symbol(symbol) for symbol in self._config_manager.config.watchlist_symbols]
+        if self._active_symbol not in symbols:
+            symbols.insert(0, self._active_symbol)
+        return symbols
+
+    def set_active_symbol(self, symbol: str, *, persist: bool = True) -> str:
+        normalized = self._normalize_symbol(symbol)
+        self._active_symbol = normalized
         if persist:
             config = self._config_manager.config
-            config.active_symbol = symbol
+            config.active_symbol = normalized
+            if normalized not in config.watchlist_symbols:
+                config.watchlist_symbols.insert(0, normalized)
+                config.watchlist_symbols = config.watchlist_symbols[:20]
             self._config_manager.save_config()
-        self._event_bus.publish("market.active_symbol_changed", symbol)
+        self._event_bus.publish("market.active_symbol_changed", normalized)
+        return normalized
+
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        normalized = symbol.strip().upper()
+        if not normalized:
+            raise ValidationError("交易对不能为空")
+        return normalized
 
     async def fetch_ticker(self, symbol: str | None = None) -> DesktopTicker:
         sym = symbol or self._active_symbol
@@ -73,6 +93,13 @@ class MarketManager:
         depth = await self._rest.get_depth(sym, limit=limit)
         self._event_bus.publish("depth.updated", depth)
         return depth
+
+    async def refresh_snapshot(self, symbol: str | None = None) -> dict[str, object]:
+        sym = self._normalize_symbol(symbol or self._active_symbol)
+        ticker = await self.fetch_ticker(sym)
+        depth = await self.get_depth(sym)
+        klines = await self.get_klines(sym)
+        return {"symbol": sym, "ticker": ticker, "depth": depth, "klines": klines}
 
     async def subscribe_ticker(self, symbol: str | None = None) -> None:
         sym = symbol or self._active_symbol

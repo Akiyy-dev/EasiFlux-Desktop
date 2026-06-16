@@ -6,6 +6,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QGroupBox, QTableWidget, QTableWidgetItem, QVBoxLayout
 
 from easiflux_desktop.core.context import AppContext
+from easiflux_desktop.core.state_store import MarketState
 from easiflux_desktop.models.market import DesktopDepth
 
 
@@ -18,7 +19,10 @@ class OrderBookWidget(QGroupBox):
         self._table.setHorizontalHeaderLabels(["买价", "买量", "卖价", "卖量"])
         self._table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._table)
-        ctx.event_bus.subscribe("depth.updated", self._on_depth)
+        ctx.event_bus.subscribe("state.market.updated", self._on_market_state)
+        depth = ctx.state_store.market.depth()
+        if depth is not None:
+            self.set_depth(depth)
 
     def set_depth(self, depth: DesktopDepth) -> None:
         rows = max(len(depth.bids), len(depth.asks), 1)
@@ -39,5 +43,7 @@ class OrderBookWidget(QGroupBox):
                 self._table.setItem(i, 2, ask_price)
                 self._table.setItem(i, 3, ask_size)
 
-    def _on_depth(self, depth: DesktopDepth) -> None:
-        self.set_depth(depth)
+    def _on_market_state(self, state: MarketState) -> None:
+        depth = state.depth()
+        if depth is not None:
+            self.set_depth(depth)

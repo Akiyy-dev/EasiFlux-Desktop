@@ -13,7 +13,9 @@ from easiflux_desktop.core.commands import (
     PlaceOrderCommand,
     RefreshAccountCommand,
     RefreshOrdersCommand,
+    SaveConnectionSettingsCommand,
     SetActiveSymbolCommand,
+    SetKlineIntervalCommand,
     TestConnectionCommand,
     ToggleStrategyCommand,
     UpdateRiskConfigCommand,
@@ -43,7 +45,7 @@ class FakeMarketManager:
     async def get_klines(self, symbol=None, interval=None):
         return [symbol or self.active_symbol, interval or "1"]
 
-    def set_active_symbol(self, symbol):
+    def set_active_symbol(self, symbol, *, persist=True):
         self.active_symbol = symbol
 
 
@@ -65,8 +67,22 @@ class FakeTradingManager:
 
 class FakeConfigManager:
     def __init__(self):
-        self.config = SimpleNamespace(active_symbol="BTCUSDT")
+        self.config = SimpleNamespace(
+            active_account_id="default",
+            active_symbol="BTCUSDT",
+            kline_interval="1",
+            use_websocket=True,
+        )
         self.saved_risk_config = None
+
+    def save_connection_settings(self, *, active_symbol, use_websocket, credential=None, account_id=None):
+        self.config.active_symbol = active_symbol
+        self.config.use_websocket = use_websocket
+        return self.config
+
+    def set_kline_interval(self, interval):
+        self.config.kline_interval = interval
+        return self.config
 
     def save_risk_config(self, config):
         self.saved_risk_config = config
@@ -132,6 +148,13 @@ async def test_app_context_registers_core_commands():
     assert (await command_bus.execute(LoadKlinesCommand(interval="5"))).data == ["BTCUSDT", "5"]
     assert (await command_bus.execute(RefreshAccountCommand("ETHUSDT"))).data == {"symbol": "ETHUSDT"}
     assert (await command_bus.execute(RefreshOrdersCommand("ETHUSDT"))).data == ["ETHUSDT"]
+    settings = await command_bus.execute(SaveConnectionSettingsCommand(active_symbol="SOLUSDT", use_websocket=False))
+    assert settings.data.active_symbol == "SOLUSDT"
+    assert not settings.data.use_websocket
+    assert market_manager.active_symbol == "SOLUSDT"
+    klines = await command_bus.execute(SetKlineIntervalCommand("15"))
+    assert config_manager.config.kline_interval == "15"
+    assert klines.data == ["SOLUSDT", "15"]
 
     request = PlaceOrderRequest(symbol="BTCUSDT", side="Buy", order_type="Market", qty="0.01")
     assert (await command_bus.execute(PlaceOrderCommand(request))).data == request

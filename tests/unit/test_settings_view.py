@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+from easiflux_desktop.core.commands import SaveConnectionSettingsCommand
 from easiflux_desktop.views.settings_view import SettingsView
 
 
@@ -12,25 +13,19 @@ class FakeConfigManager:
             active_symbol="BTCUSDT",
             use_websocket=True,
         )
-        self.saved = False
-        self.credentials_saved = False
 
     def get_credentials(self):
         return None
-
-    def set_credentials(self, account_id, credential):
-        self.credentials_saved = True
-
-    def save_config(self):
-        self.saved = True
 
 
 class FakeCommandBus:
     def __init__(self):
         self.commands = []
 
-    def execute_background(self, command):
+    def execute_background(self, command, on_complete=None):
         self.commands.append(command)
+        if on_complete:
+            on_complete(SimpleNamespace(success=True, data=SimpleNamespace(), error=None))
 
 
 def test_settings_save_without_credentials_only_saves_config(qapp):
@@ -42,10 +37,12 @@ def test_settings_save_without_credentials_only_saves_config(qapp):
     view._symbol.setText("ETHUSDT")
 
     assert view._on_save()
-    assert config_manager.saved
-    assert not config_manager.credentials_saved
-    assert config_manager.config.active_symbol == "ETHUSDT"
     assert command_bus.commands
+    command = command_bus.commands[-1]
+    assert isinstance(command, SaveConnectionSettingsCommand)
+    assert command.active_symbol == "ETHUSDT"
+    assert command.credential is None
+    assert view._status.text() == "配置已保存"
 
 
 def test_settings_busy_state_disables_actions(qapp):

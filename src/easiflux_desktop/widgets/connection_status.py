@@ -13,8 +13,8 @@ class ConnectionStatusWidget(QLabel):
         super().__init__(parent)
         self._ctx = ctx
         self.setText("未连接")
-        self._apply_style(ConnectionStatus.DISCONNECTED)
-        ctx.event_bus.subscribe("connection.status_changed", self._on_status)
+        self._on_status(ctx.state_store.account.connection_status)
+        ctx.event_bus.subscribe("state.connection.updated", self._on_status)
 
     def _on_status(self, status: ConnectionStatus) -> None:
         labels = {

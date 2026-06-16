@@ -8,12 +8,12 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
+    QLabel,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
-    QLabel,
-    QMessageBox,
 )
 
 from easiflux_desktop.core.commands import CancelOrderCommand, RefreshOrdersCommand

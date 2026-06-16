@@ -28,6 +28,29 @@ class ConfigManager:
             self._config = config
         self._config_store.save(self._config)
 
+    def normalize_account_id(self, account_id: str) -> str:
+        normalized = account_id.strip()
+        if not normalized:
+            raise ValidationError("账户名称不能为空")
+        return normalized
+
+    def add_account(self, account_id: str, *, make_active: bool = True) -> AppConfig:
+        account = self.normalize_account_id(account_id)
+        if account not in self._config.accounts:
+            self._config.accounts.append(account)
+        if make_active:
+            self._config.active_account_id = account
+        self.save_config()
+        return self._config
+
+    def switch_account(self, account_id: str) -> AppConfig:
+        account = self.normalize_account_id(account_id)
+        if account not in self._config.accounts:
+            raise ValidationError(f"账户 {account} 未配置")
+        self._config.active_account_id = account
+        self.save_config()
+        return self._config
+
     def get_credentials(self, account_id: str | None = None) -> ApiCredential | None:
         account = account_id or self._config.active_account_id
         return self._credential_store.load(account)

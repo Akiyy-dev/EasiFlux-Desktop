@@ -6,6 +6,7 @@ import pytest
 
 from easiflux_desktop.core.command_bus import CommandBus
 from easiflux_desktop.core.commands import (
+    AddAccountCommand,
     CancelOrderCommand,
     ConnectCommand,
     ExportAnalyticsCommand,
@@ -17,6 +18,7 @@ from easiflux_desktop.core.commands import (
     SaveConnectionSettingsCommand,
     SetActiveSymbolCommand,
     SetKlineIntervalCommand,
+    SwitchAccountCommand,
     TestConnectionCommand,
     ToggleStrategyCommand,
     UpdateRiskConfigCommand,
@@ -29,9 +31,15 @@ from easiflux_desktop.services.risk_manager import RiskConfig
 
 class FakeConnectionManager:
     is_connected = True
+    disconnected = 0
 
     async def connect(self, credential=None):
+        self.is_connected = True
         return True
+
+    async def disconnect(self):
+        self.disconnected += 1
+        self.is_connected = False
 
     async def test_connection(self, credential=None):
         return credential is not None
@@ -84,11 +92,23 @@ class FakeConfigManager:
         self.config = SimpleNamespace(
             active_account_id="default",
             active_symbol="BTCUSDT",
+            accounts=["default"],
             kline_interval="1",
             use_websocket=True,
             watchlist_symbols=["BTCUSDT", "ETHUSDT"],
         )
         self.saved_risk_config = None
+
+    def add_account(self, account_id, *, make_active=True):
+        if account_id not in self.config.accounts:
+            self.config.accounts.append(account_id)
+        if make_active:
+            self.config.active_account_id = account_id
+        return self.config
+
+    def switch_account(self, account_id):
+        self.config.active_account_id = account_id
+        return self.config
 
     def save_connection_settings(self, *, active_symbol, use_websocket, credential=None, account_id=None):
         self.config.active_symbol = active_symbol
@@ -125,6 +145,22 @@ class FakeStrategyManager:
         return [SimpleNamespace(name="grid", enabled=self.enabled)]
 
 
+class FakeMultiAccountManager:
+    def __init__(self, config_manager):
+        self.config_manager = config_manager
+
+    def add_account(self, account_id, *, make_active=True):
+        self.config_manager.add_account(account_id, make_active=make_active)
+        return account_id
+
+    async def switch_account(self, account_id):
+        self.config_manager.switch_account(account_id)
+        return SimpleNamespace(account_id=account_id)
+
+    def list_accounts(self):
+        return list(self.config_manager.config.accounts)
+
+
 class FakeTradeLogStore:
     def export_text(self, filename, content):
         return f"/tmp/{filename}:{content}"
@@ -151,6 +187,7 @@ async def test_app_context_registers_core_commands():
         trading_manager=FakeTradingManager(),
         risk_manager=risk_manager,
         strategy_manager=strategy_manager,
+        multi_account_manager=FakeMultiAccountManager(config_manager),
         trade_log_store=FakeTradeLogStore(),
         analytics_service=FakeAnalyticsService(),
         event_bus=event_bus,
@@ -158,6 +195,12 @@ async def test_app_context_registers_core_commands():
     AppContext._wire_commands(command_bus, ctx)
 
     assert (await command_bus.execute(TestConnectionCommand(object()))).success
+    added = await command_bus.execute(AddAccountCommand("sub1"))
+    assert added.data.active_account_id == "sub1"
+    assert "sub1" in added.data.accounts
+    switched = await command_bus.execute(SwitchAccountCommand("default"))
+    assert switched.data == "default"
+    assert config_manager.config.active_account_id == "default"
     assert (await command_bus.execute(ConnectCommand())).success
     assert market_manager.realtime_started[-1] == "BTCUSDT"
     assert market_manager.snapshots[-1] == {"symbol": "BTCUSDT"}
@@ -177,7 +220,7 @@ async def test_app_context_registers_core_commands():
     assert (await command_bus.execute(PlaceOrderCommand(request))).data == request
     assert (await command_bus.execute(CancelOrderCommand("BTCUSDT", "1"))).data == ("BTCUSDT", "1")
     assert (await command_bus.execute(SetActiveSymbolCommand("ETHUSDT"))).data == "ETHUSDT"
-    assert market_manager.realtime_stopped == 1
+    assert market_manager.realtime_stopped == 2
     assert market_manager.realtime_started[-1] == "ETHUSDT"
     assert market_manager.snapshots[-1] == {"symbol": "ETHUSDT"}
     risk_config = RiskConfig(max_daily_orders=10)

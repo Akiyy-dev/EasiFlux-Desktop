@@ -23,6 +23,17 @@ class TestConnectionCommand:
 
 
 @dataclass(frozen=True)
+class AddAccountCommand:
+    account_id: str
+    switch: bool = True
+
+
+@dataclass(frozen=True)
+class SwitchAccountCommand:
+    account_id: str
+
+
+@dataclass(frozen=True)
 class SaveConnectionSettingsCommand:
     active_symbol: str
     use_websocket: bool

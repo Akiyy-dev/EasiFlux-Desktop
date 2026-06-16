@@ -24,6 +24,7 @@ def test_state_store_reduces_market_and_account_events(qapp):
         ),
     )
     bus.publish("connection.status_changed", ConnectionStatus.CONNECTED)
+    bus.publish("account.active_account_changed", "sub1")
     bus.publish(
         "balances.loaded",
         [DesktopBalance("USDT", Decimal("100"), Decimal("100"), Decimal("80"))],
@@ -31,6 +32,7 @@ def test_state_store_reduces_market_and_account_events(qapp):
     qapp.processEvents()
 
     assert store.market.ticker("BTCUSDT").last_price == Decimal("50000")
+    assert store.account.active_account_id == "sub1"
     assert store.account.connection_status == ConnectionStatus.CONNECTED
     assert store.account.total_equity == Decimal("100")
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from easiflux_desktop.adapters.sdk_client_factory import SdkClientFactory
+from easiflux_desktop.core.errors import ValidationError
 from easiflux_desktop.models.config import ConnectionStatus
 from easiflux_desktop.services.config_manager import ConfigManager
 
@@ -31,19 +32,25 @@ class MultiAccountManager:
     def list_accounts(self) -> list[str]:
         return list(self._config_manager.config.accounts)
 
+    def add_account(self, account_id: str, *, make_active: bool = True) -> str:
+        config = self._config_manager.add_account(account_id, make_active=make_active)
+        if make_active:
+            self._active_id = config.active_account_id
+        return self._config_manager.normalize_account_id(account_id)
+
     async def switch_account(self, account_id: str) -> AccountSession:
-        if account_id not in self._config_manager.config.accounts:
-            raise ValueError(f"Account {account_id} not configured")
+        try:
+            config = self._config_manager.switch_account(account_id)
+        except ValidationError:
+            raise
+        except Exception as exc:
+            raise ValidationError(str(exc)) from exc
 
-        self._active_id = account_id
-        config = self._config_manager.config
-        config.active_account_id = account_id
-        self._config_manager.save_config()
+        self._active_id = config.active_account_id
+        if self._active_id not in self._sessions:
+            self._sessions[self._active_id] = AccountSession(self._active_id, SdkClientFactory())
 
-        if account_id not in self._sessions:
-            self._sessions[account_id] = AccountSession(account_id, SdkClientFactory())
-
-        return self._sessions[account_id]
+        return self._sessions[self._active_id]
 
     async def connect_account(self, account_id: str) -> bool:
         session = await self.switch_account(account_id)

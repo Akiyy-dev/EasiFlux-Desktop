@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from easiflux_desktop.models.config import ApiCredential, AppConfig
+from easiflux_desktop.services.risk_manager import RiskConfig
 from easiflux_desktop.storage.config_store import ConfigStore
 from easiflux_desktop.storage.credential_store import CredentialStore
 
@@ -39,3 +40,18 @@ class ConfigManager:
     def has_credentials(self, account_id: str | None = None) -> bool:
         account = account_id or self._config.active_account_id
         return self._credential_store.has_credentials(account)
+
+    def risk_config(self) -> RiskConfig:
+        return RiskConfig(
+            max_order_qty=self._config.risk_max_order_qty,
+            max_price_deviation_pct=self._config.risk_max_price_deviation_pct,
+            max_daily_orders=self._config.risk_max_daily_orders,
+            enabled=self._config.risk_enabled,
+        )
+
+    def save_risk_config(self, risk_config: RiskConfig) -> None:
+        self._config.risk_enabled = risk_config.enabled
+        self._config.risk_max_order_qty = risk_config.max_order_qty
+        self._config.risk_max_price_deviation_pct = risk_config.max_price_deviation_pct
+        self._config.risk_max_daily_orders = risk_config.max_daily_orders
+        self.save_config()

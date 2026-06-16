@@ -11,12 +11,15 @@ from easiflux_desktop.core.command_bus import CommandBus
 from easiflux_desktop.core.commands import (
     CancelOrderCommand,
     ConnectCommand,
+    ExportAnalyticsCommand,
     LoadKlinesCommand,
     PlaceOrderCommand,
     RefreshAccountCommand,
     RefreshOrdersCommand,
     SetActiveSymbolCommand,
     TestConnectionCommand,
+    ToggleStrategyCommand,
+    UpdateRiskConfigCommand,
 )
 from easiflux_desktop.core.event_bus import EventBus
 from easiflux_desktop.core.state_store import StateStore
@@ -32,6 +35,7 @@ from easiflux_desktop.services.trading_manager import TradingManager
 from easiflux_desktop.storage.cache_store import CacheStore
 from easiflux_desktop.storage.config_store import ConfigStore
 from easiflux_desktop.storage.credential_store import CredentialStore
+from easiflux_desktop.storage.trade_log_store import TradeLogStore
 
 
 @dataclass
@@ -52,6 +56,7 @@ class AppContext:
     rest_adapter: RestAdapter
     ws_adapter: WsAdapter
     cache_store: CacheStore
+    trade_log_store: TradeLogStore
 
     @classmethod
     def create(cls) -> AppContext:
@@ -61,6 +66,7 @@ class AppContext:
         config_store = ConfigStore()
         credential_store = CredentialStore()
         cache_store = CacheStore()
+        trade_log_store = TradeLogStore()
 
         config_manager = ConfigManager(config_store, credential_store)
         config_manager.load_config()
@@ -74,7 +80,7 @@ class AppContext:
         rest_adapter = RestAdapter(sdk_factory)
         ws_adapter = WsAdapter(sdk_factory, event_bus)
 
-        risk_manager = RiskManager()
+        risk_manager = RiskManager(config_manager.risk_config())
         connection_manager = ConnectionManager(sdk_factory, config_manager, event_bus)
         market_manager = MarketManager(rest_adapter, ws_adapter, cache_store, config_manager, event_bus)
         trading_manager = TradingManager(rest_adapter, ws_adapter, risk_manager, event_bus)
@@ -106,16 +112,19 @@ class AppContext:
             rest_adapter=rest_adapter,
             ws_adapter=ws_adapter,
             cache_store=cache_store,
+            trade_log_store=trade_log_store,
         )
-        ctx._wire_analytics(event_bus, analytics_service)
+        ctx._wire_order_sinks(event_bus, analytics_service, trade_log_store)
         ctx._wire_commands(command_bus, ctx)
         return ctx
 
     @staticmethod
-    def _wire_analytics(event_bus: EventBus, analytics: AnalyticsService) -> None:
+    def _wire_order_sinks(event_bus: EventBus, analytics: AnalyticsService, trade_log_store: TradeLogStore) -> None:
         event_bus.subscribe("order.updated", analytics.record_order)
         event_bus.subscribe("order.created", analytics.record_order)
         event_bus.subscribe("position.updated", analytics.record_position)
+        event_bus.subscribe("order.updated", trade_log_store.record_order)
+        event_bus.subscribe("order.created", trade_log_store.record_order)
 
     @staticmethod
     def _wire_commands(command_bus: CommandBus, ctx: AppContext) -> None:
@@ -152,6 +161,27 @@ class AppContext:
             ctx.market_manager.set_active_symbol(command.symbol)
             return command.symbol
 
+        async def _update_risk_config(command: UpdateRiskConfigCommand):
+            ctx.risk_manager.update_config(command.config)
+            ctx.config_manager.save_risk_config(command.config)
+            ctx.event_bus.publish("risk.config_updated", command.config, sticky=True)
+            return command.config
+
+        async def _toggle_strategy(command: ToggleStrategyCommand):
+            if command.enabled:
+                ctx.strategy_manager.enable(command.name)
+            else:
+                ctx.strategy_manager.disable(command.name)
+            states = ctx.strategy_manager.list_strategies()
+            ctx.event_bus.publish("strategy.states_updated", states, sticky=True)
+            return states
+
+        async def _export_analytics(command: ExportAnalyticsCommand):
+            return ctx.trade_log_store.export_text(
+                command.filename,
+                ctx.analytics_service.export_orders_csv(),
+            )
+
         command_bus.register(ConnectCommand, _connect)
         command_bus.register(TestConnectionCommand, _test_connection)
         command_bus.register(PlaceOrderCommand, _place_order)
@@ -160,6 +190,9 @@ class AppContext:
         command_bus.register(RefreshAccountCommand, _refresh_account)
         command_bus.register(LoadKlinesCommand, _load_klines)
         command_bus.register(SetActiveSymbolCommand, _set_active_symbol)
+        command_bus.register(UpdateRiskConfigCommand, _update_risk_config)
+        command_bus.register(ToggleStrategyCommand, _toggle_strategy)
+        command_bus.register(ExportAnalyticsCommand, _export_analytics)
 
     async def shutdown(self) -> None:
         await self.market_manager.stop_realtime()

@@ -76,17 +76,24 @@ class SettingsView(QGroupBox):
             base_url=self._base_url.text().strip() or DEFAULT_BASE_URL,
         )
 
-    def _on_save(self) -> None:
+    def _on_save(self) -> bool:
         cred = self._build_credential()
         account_id = self._ctx.config_manager.config.active_account_id
-        self._ctx.config_manager.set_credentials(account_id, cred)
+        try:
+            if cred.api_key or cred.api_secret:
+                self._ctx.config_manager.set_credentials(account_id, cred)
 
-        config = self._ctx.config_manager.config
-        config.active_symbol = self._symbol.text().strip()
-        config.use_websocket = self._use_ws.isChecked()
-        self._ctx.config_manager.save_config()
-        self._ctx.command_bus.execute_background(SetActiveSymbolCommand(config.active_symbol))
-        self._status.setText("配置已保存")
+            config = self._ctx.config_manager.config
+            config.active_symbol = self._symbol.text().strip()
+            config.use_websocket = self._use_ws.isChecked()
+            self._ctx.config_manager.save_config()
+            self._ctx.command_bus.execute_background(SetActiveSymbolCommand(config.active_symbol))
+            self._status.setText("配置已保存")
+            return True
+        except Exception as exc:
+            self._status.setText(f"保存失败: {exc}")
+            QMessageBox.warning(self, "保存失败", str(exc))
+            return False
 
     async def _on_test(self) -> None:
         cred = self._build_credential()
@@ -99,7 +106,8 @@ class SettingsView(QGroupBox):
             self._status.setText(f"测试失败: {exc}")
 
     async def _on_connect(self) -> None:
-        self._on_save()
+        if not self._on_save():
+            return
         cred = self._build_credential()
         self._status.setText("连接中...")
         try:

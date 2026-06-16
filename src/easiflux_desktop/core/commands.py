@@ -16,6 +16,8 @@ class ConnectCommand:
 
 @dataclass(frozen=True)
 class TestConnectionCommand:
+    __test__ = False
+
     credential: ApiCredential | None = None
 
 

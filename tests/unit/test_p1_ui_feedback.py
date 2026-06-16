@@ -49,6 +49,18 @@ def test_order_panel_cancelled_confirmation_does_not_dispatch(qapp):
     assert ctx.command_bus.commands == []
 
 
+def test_order_panel_limit_order_requires_price(qapp):
+    ctx = _ctx()
+    panel = OrderPanel(ctx)
+    panel._confirm_order = lambda request: (_ for _ in ()).throw(AssertionError("confirmation should not open"))
+
+    panel._on_submit()
+    qapp.processEvents()
+
+    assert panel._status.text() == "限价单必须填写价格"
+    assert ctx.command_bus.commands == []
+
+
 def test_order_table_busy_state_disables_refresh(qapp):
     table = OrderTable(_ctx())
 

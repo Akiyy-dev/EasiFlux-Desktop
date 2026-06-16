@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal, InvalidOperation
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -67,6 +68,10 @@ class OrderPanel(QGroupBox):
             price=self._price.text().strip() or None,
             qty=self._qty.text().strip(),
         )
+        validation_error = self._validate_order_input(request)
+        if validation_error:
+            self._status.setText(validation_error)
+            return
         if not self._confirm_order(request):
             self._status.setText("已取消下单")
             return
@@ -86,8 +91,31 @@ class OrderPanel(QGroupBox):
         finally:
             self._set_busy(False)
 
+    def _validate_order_input(self, request: PlaceOrderRequest) -> str | None:
+        if not request.symbol:
+            return "交易对不能为空"
+        if not request.qty:
+            return "数量不能为空"
+        try:
+            qty = Decimal(request.qty)
+        except InvalidOperation:
+            return "数量格式无效"
+        if qty <= 0:
+            return "数量必须大于 0"
+
+        if request.order_type.lower() == "limit":
+            if not request.price:
+                return "限价单必须填写价格"
+            try:
+                price = Decimal(request.price)
+            except InvalidOperation:
+                return "价格格式无效"
+            if price <= 0:
+                return "价格必须大于 0"
+        return None
+
     def _confirm_order(self, request: PlaceOrderRequest) -> bool:
-        price = request.price or "市价"
+        price = request.price if request.order_type.lower() == "limit" else "市价"
         message = (
             f"交易对: {request.symbol}\n"
             f"方向: {request.side}\n"

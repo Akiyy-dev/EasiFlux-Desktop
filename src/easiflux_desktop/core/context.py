@@ -9,6 +9,7 @@ from easiflux_desktop.adapters.sdk_client_factory import SdkClientFactory
 from easiflux_desktop.adapters.ws_adapter import WsAdapter
 from easiflux_desktop.core.command_bus import CommandBus
 from easiflux_desktop.core.commands import (
+    AddAccountCommand,
     CancelOrderCommand,
     ConnectCommand,
     ExportAnalyticsCommand,
@@ -20,6 +21,7 @@ from easiflux_desktop.core.commands import (
     SaveConnectionSettingsCommand,
     SetActiveSymbolCommand,
     SetKlineIntervalCommand,
+    SwitchAccountCommand,
     TestConnectionCommand,
     ToggleStrategyCommand,
     UpdateRiskConfigCommand,
@@ -144,6 +146,23 @@ class AppContext:
         async def _test_connection(command: TestConnectionCommand) -> bool:
             return await ctx.connection_manager.test_connection(command.credential)
 
+        async def _add_account(command: AddAccountCommand):
+            account_id = ctx.multi_account_manager.add_account(command.account_id, make_active=command.switch)
+            if command.switch:
+                ctx.event_bus.publish("account.active_account_changed", account_id, sticky=True)
+            ctx.event_bus.publish("accounts.updated", ctx.multi_account_manager.list_accounts(), sticky=True)
+            ctx.event_bus.publish("config.updated", ctx.config_manager.config, sticky=True)
+            return ctx.config_manager.config
+
+        async def _switch_account(command: SwitchAccountCommand):
+            await ctx.market_manager.stop_realtime()
+            await ctx.connection_manager.disconnect()
+            session = await ctx.multi_account_manager.switch_account(command.account_id)
+            ctx.event_bus.publish("account.active_account_changed", session.account_id, sticky=True)
+            ctx.event_bus.publish("accounts.updated", ctx.multi_account_manager.list_accounts(), sticky=True)
+            ctx.event_bus.publish("config.updated", ctx.config_manager.config, sticky=True)
+            return session.account_id
+
         async def _save_connection_settings(command: SaveConnectionSettingsCommand):
             config = ctx.config_manager.save_connection_settings(
                 active_symbol=command.active_symbol,
@@ -212,6 +231,8 @@ class AppContext:
 
         command_bus.register(ConnectCommand, _connect)
         command_bus.register(TestConnectionCommand, _test_connection)
+        command_bus.register(AddAccountCommand, _add_account)
+        command_bus.register(SwitchAccountCommand, _switch_account)
         command_bus.register(SaveConnectionSettingsCommand, _save_connection_settings)
         command_bus.register(PlaceOrderCommand, _place_order)
         command_bus.register(CancelOrderCommand, _cancel_order)

@@ -6,6 +6,7 @@ import asyncio
 
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -16,7 +17,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from easiflux_desktop.core.commands import ConnectCommand, SaveConnectionSettingsCommand, TestConnectionCommand
+from easiflux_desktop.core.commands import (
+    AddAccountCommand,
+    ConnectCommand,
+    SaveConnectionSettingsCommand,
+    SwitchAccountCommand,
+    TestConnectionCommand,
+)
 from easiflux_desktop.core.constants import DEFAULT_BASE_URL
 from easiflux_desktop.core.context import AppContext
 from easiflux_desktop.core.state_store import MarketState
@@ -28,6 +35,27 @@ class SettingsView(QGroupBox):
         super().__init__("设置", parent)
         self._ctx = ctx
         layout = QVBoxLayout(self)
+        account_group = QGroupBox("账户")
+        account_layout = QFormLayout(account_group)
+        self._account_combo = QComboBox()
+        self._sync_accounts()
+        self._switch_account_btn = QPushButton("切换账户")
+        self._switch_account_btn.clicked.connect(lambda: asyncio.create_task(self._on_switch_account()))
+        switch_row = QHBoxLayout()
+        switch_row.addWidget(self._account_combo)
+        switch_row.addWidget(self._switch_account_btn)
+        account_layout.addRow("当前账户", switch_row)
+
+        self._new_account = QLineEdit()
+        self._new_account.setPlaceholderText("例如: sub-account-1")
+        self._add_account_btn = QPushButton("添加账户")
+        self._add_account_btn.clicked.connect(lambda: asyncio.create_task(self._on_add_account()))
+        add_row = QHBoxLayout()
+        add_row.addWidget(self._new_account)
+        add_row.addWidget(self._add_account_btn)
+        account_layout.addRow("新增账户", add_row)
+        layout.addWidget(account_group)
+
         form = QFormLayout()
 
         self._api_key = QLineEdit()
@@ -63,8 +91,22 @@ class SettingsView(QGroupBox):
 
         self._load_existing()
         ctx.event_bus.subscribe("state.market.updated", self._on_market_state)
+        ctx.event_bus.subscribe("accounts.updated", lambda _: self._sync_accounts())
+        ctx.event_bus.subscribe("state.account.updated", lambda _: self._sync_accounts())
+
+    def _sync_accounts(self) -> None:
+        config = self._ctx.config_manager.config
+        self._account_combo.clear()
+        self._account_combo.addItems(config.accounts)
+        self._account_combo.setCurrentText(config.active_account_id)
+
+    def _current_account_id(self) -> str:
+        return self._account_combo.currentText().strip()
 
     def _load_existing(self) -> None:
+        self._api_key.clear()
+        self._api_secret.clear()
+        self._base_url.setText(DEFAULT_BASE_URL)
         cred = self._ctx.config_manager.get_credentials()
         if cred:
             self._api_key.setText(cred.api_key)
@@ -81,12 +123,11 @@ class SettingsView(QGroupBox):
     def _build_save_command(self) -> SaveConnectionSettingsCommand:
         cred = self._build_credential()
         credential = cred if cred.api_key or cred.api_secret else None
-        account_id = self._ctx.config_manager.config.active_account_id
         return SaveConnectionSettingsCommand(
             active_symbol=self._symbol.text().strip(),
             use_websocket=self._use_ws.isChecked(),
             credential=credential,
-            account_id=account_id,
+            account_id=self._current_account_id(),
         )
 
     def _on_save(self) -> bool:
@@ -150,10 +191,41 @@ class SettingsView(QGroupBox):
         finally:
             self._set_busy(False)
 
+    async def _on_add_account(self) -> None:
+        account_id = self._new_account.text().strip()
+        self._set_busy(True, "正在添加账户...")
+        try:
+            result = await self._ctx.command_bus.execute(AddAccountCommand(account_id))
+            if result.success:
+                self._new_account.clear()
+                self._sync_accounts()
+                self._load_existing()
+                self._status.setText(f"已添加账户: {result.data.active_account_id}")
+            elif result.error:
+                self._status.setText(f"添加账户失败: {result.error.user_message}")
+        finally:
+            self._set_busy(False)
+
+    async def _on_switch_account(self) -> None:
+        account_id = self._current_account_id()
+        self._set_busy(True, "正在切换账户...")
+        try:
+            result = await self._ctx.command_bus.execute(SwitchAccountCommand(account_id))
+            if result.success:
+                self._sync_accounts()
+                self._load_existing()
+                self._status.setText(f"已切换账户: {result.data}")
+            elif result.error:
+                self._status.setText(f"切换账户失败: {result.error.user_message}")
+        finally:
+            self._set_busy(False)
+
     def _set_busy(self, busy: bool, label: str | None = None) -> None:
         self._save_btn.setEnabled(not busy)
         self._test_btn.setEnabled(not busy)
         self._connect_btn.setEnabled(not busy)
+        self._switch_account_btn.setEnabled(not busy)
+        self._add_account_btn.setEnabled(not busy)
         if label:
             self._status.setText(label)
 

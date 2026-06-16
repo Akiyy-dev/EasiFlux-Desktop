@@ -86,6 +86,7 @@ class StateStore:
         self._event_bus.publish("state.account.updated", self.account)
 
     def _subscribe(self) -> None:
+        self._event_bus.subscribe("account.active_account_changed", self._on_active_account)
         self._event_bus.subscribe("market.active_symbol_changed", self._on_active_symbol)
         self._event_bus.subscribe("connection.status_changed", self._on_connection_status)
         self._event_bus.subscribe("ticker.updated", self._on_ticker)
@@ -102,6 +103,9 @@ class StateStore:
 
     def _on_active_symbol(self, symbol: str) -> None:
         self.set_active_symbol(symbol)
+
+    def _on_active_account(self, account_id: str) -> None:
+        self.set_active_account(account_id)
 
     def _on_connection_status(self, status: ConnectionStatus) -> None:
         self.account.connection_status = status

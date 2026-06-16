@@ -5,7 +5,17 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal, InvalidOperation
 
-from PySide6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from easiflux_desktop.core.commands import ExportAnalyticsCommand, ToggleStrategyCommand, UpdateRiskConfigCommand
 from easiflux_desktop.core.context import AppContext

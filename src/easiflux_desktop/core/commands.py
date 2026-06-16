@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from easiflux_desktop.models.config import ApiCredential
-from easiflux_desktop.services.risk_manager import RiskConfig
 from easiflux_desktop.models.trading import PlaceOrderRequest
+from easiflux_desktop.services.risk_manager import RiskConfig
 
 
 @dataclass(frozen=True)

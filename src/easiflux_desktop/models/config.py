@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import Enum
 
 from easiflux_desktop.core.constants import DEFAULT_BASE_URL, DEFAULT_SYMBOL
@@ -39,3 +40,7 @@ class AppConfig:
     window_width: int = 1400
     window_height: int = 900
     accounts: list[str] = field(default_factory=lambda: ["default"])
+    risk_enabled: bool = True
+    risk_max_order_qty: Decimal = Decimal("100")
+    risk_max_price_deviation_pct: Decimal = Decimal("5")
+    risk_max_daily_orders: int = 500

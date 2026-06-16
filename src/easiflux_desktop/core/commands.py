@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from easiflux_desktop.models.config import ApiCredential
 from easiflux_desktop.models.trading import PlaceOrderRequest
+from easiflux_desktop.services.risk_manager import RiskConfig
 
 
 @dataclass(frozen=True)
@@ -51,3 +52,19 @@ class LoadKlinesCommand:
 @dataclass(frozen=True)
 class SetActiveSymbolCommand:
     symbol: str
+
+
+@dataclass(frozen=True)
+class UpdateRiskConfigCommand:
+    config: RiskConfig
+
+
+@dataclass(frozen=True)
+class ToggleStrategyCommand:
+    name: str
+    enabled: bool
+
+
+@dataclass(frozen=True)
+class ExportAnalyticsCommand:
+    filename: str = "orders_export.csv"

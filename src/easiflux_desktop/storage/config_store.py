@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 if sys.version_info >= (3, 11):
@@ -40,6 +41,10 @@ class ConfigStore:
             window_width=int(data.get("window_width", 1400)),
             window_height=int(data.get("window_height", 900)),
             accounts=list(data.get("accounts", ["default"])),
+            risk_enabled=bool(data.get("risk_enabled", True)),
+            risk_max_order_qty=Decimal(str(data.get("risk_max_order_qty", "100"))),
+            risk_max_price_deviation_pct=Decimal(str(data.get("risk_max_price_deviation_pct", "5"))),
+            risk_max_daily_orders=int(data.get("risk_max_daily_orders", 500)),
         )
 
     def save(self, config: AppConfig) -> None:
@@ -53,5 +58,9 @@ class ConfigStore:
             f"window_width = {config.window_width}",
             f"window_height = {config.window_height}",
             f"accounts = {config.accounts!r}",
+            f"risk_enabled = {'true' if config.risk_enabled else 'false'}",
+            f'risk_max_order_qty = "{config.risk_max_order_qty}"',
+            f'risk_max_price_deviation_pct = "{config.risk_max_price_deviation_pct}"',
+            f"risk_max_daily_orders = {config.risk_max_daily_orders}",
         ]
         self._path.write_text("\n".join(lines) + "\n", encoding="utf-8")

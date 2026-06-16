@@ -72,6 +72,7 @@ class TradingManager:
         orders = await self._rest.get_open_orders(symbol)
         for order in orders:
             self._orders[order.order_id] = order
+        self._event_bus.publish("orders.loaded", {"symbol": symbol, "orders": orders})
         return orders
 
     async def refresh_orders(self, symbol: str | None = None) -> list[DesktopOrder]:

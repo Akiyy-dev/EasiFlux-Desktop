@@ -5,8 +5,10 @@ from __future__ import annotations
 import pyqtgraph as pg
 from PySide6.QtWidgets import QComboBox, QGroupBox, QHBoxLayout, QVBoxLayout
 
+from easiflux_desktop.core.commands import LoadKlinesCommand
 from easiflux_desktop.core.constants import KLINE_INTERVALS
 from easiflux_desktop.core.context import AppContext
+from easiflux_desktop.core.state_store import MarketState
 from easiflux_desktop.models.market import DesktopKline
 
 
@@ -35,14 +37,15 @@ class KlineChart(QGroupBox):
         self._plot.addItem(self._candle)
         layout.addWidget(self._plot)
 
-        ctx.event_bus.subscribe("kline.updated", self._on_kline_batch)
+        ctx.event_bus.subscribe("state.klines.updated", self._on_klines_state)
+        self.set_klines(ctx.state_store.market.kline_series(interval=ctx.config_manager.config.kline_interval))
 
     def _on_interval_changed(self, interval: str) -> None:
         config = self._ctx.config_manager.config
         config.kline_interval = interval
         self._ctx.config_manager.save_config()
         import asyncio
-        asyncio.create_task(self._ctx.market_manager.get_klines(interval=interval))
+        asyncio.create_task(self._ctx.command_bus.execute(LoadKlinesCommand(interval=interval)))
 
     def set_klines(self, klines: list[DesktopKline]) -> None:
         if not klines:
@@ -51,8 +54,8 @@ class KlineChart(QGroupBox):
         xs = list(range(len(closes)))
         self._candle.setData(xs, closes, pen=pg.mkPen("#26a69a", width=2))
 
-    def _on_kline_batch(self, _kline: DesktopKline) -> None:
+    def _on_klines_state(self, state: MarketState) -> None:
         symbol = self._ctx.market_manager.active_symbol
         interval = self._ctx.config_manager.config.kline_interval
-        klines = self._ctx.cache_store.get_klines(symbol, interval)
+        klines = state.kline_series(symbol, interval)
         self.set_klines(klines)

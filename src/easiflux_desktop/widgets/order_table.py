@@ -14,7 +14,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from easiflux_desktop.core.commands import CancelOrderCommand, RefreshOrdersCommand
 from easiflux_desktop.core.context import AppContext
+from easiflux_desktop.core.state_store import OrderState
 from easiflux_desktop.models.trading import DesktopOrder
 
 
@@ -38,12 +40,11 @@ class OrderTable(QGroupBox):
         self._table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._table)
 
-        ctx.event_bus.subscribe("order.created", self._on_order_event)
-        ctx.event_bus.subscribe("order.updated", self._on_order_event)
+        ctx.event_bus.subscribe("state.orders.updated", self._on_order_state)
+        self.set_orders(ctx.state_store.orders.open_orders())
 
     async def _refresh(self) -> None:
-        orders = await self._ctx.trading_manager.refresh_orders()
-        self.set_orders(orders)
+        await self._ctx.command_bus.execute(RefreshOrdersCommand())
 
     def set_orders(self, orders: list[DesktopOrder]) -> None:
         self._table.setRowCount(len(orders))
@@ -73,8 +74,7 @@ class OrderTable(QGroupBox):
                 self._table.setCellWidget(row, 7, cancel_btn)
 
     async def _cancel(self, symbol: str, order_id: str) -> None:
-        await self._ctx.trading_manager.cancel_order(symbol, order_id)
-        await self._refresh()
+        await self._ctx.command_bus.execute(CancelOrderCommand(symbol, order_id))
 
-    def _on_order_event(self, order: DesktopOrder) -> None:
-        asyncio.create_task(self._refresh())
+    def _on_order_state(self, state: OrderState) -> None:
+        self.set_orders(state.open_orders())

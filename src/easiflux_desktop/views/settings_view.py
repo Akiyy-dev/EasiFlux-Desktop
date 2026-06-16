@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from easiflux_desktop.core.commands import ConnectCommand, SetActiveSymbolCommand, TestConnectionCommand
 from easiflux_desktop.core.constants import DEFAULT_BASE_URL
 from easiflux_desktop.core.context import AppContext
 from easiflux_desktop.models.config import ApiCredential
@@ -75,38 +76,47 @@ class SettingsView(QGroupBox):
             base_url=self._base_url.text().strip() or DEFAULT_BASE_URL,
         )
 
-    def _on_save(self) -> None:
+    def _on_save(self) -> bool:
         cred = self._build_credential()
         account_id = self._ctx.config_manager.config.active_account_id
-        self._ctx.config_manager.set_credentials(account_id, cred)
+        try:
+            if cred.api_key or cred.api_secret:
+                self._ctx.config_manager.set_credentials(account_id, cred)
 
-        config = self._ctx.config_manager.config
-        config.active_symbol = self._symbol.text().strip()
-        config.use_websocket = self._use_ws.isChecked()
-        self._ctx.config_manager.save_config()
-        self._ctx.market_manager.set_active_symbol(config.active_symbol)
-        self._status.setText("配置已保存")
+            config = self._ctx.config_manager.config
+            config.active_symbol = self._symbol.text().strip()
+            config.use_websocket = self._use_ws.isChecked()
+            self._ctx.config_manager.save_config()
+            self._ctx.command_bus.execute_background(SetActiveSymbolCommand(config.active_symbol))
+            self._status.setText("配置已保存")
+            return True
+        except Exception as exc:
+            self._status.setText(f"保存失败: {exc}")
+            QMessageBox.warning(self, "保存失败", str(exc))
+            return False
 
     async def _on_test(self) -> None:
         cred = self._build_credential()
         self._status.setText("测试中...")
         try:
-            ok = await self._ctx.connection_manager.test_connection(cred)
+            result = await self._ctx.command_bus.execute(TestConnectionCommand(cred))
+            ok = bool(result.success and result.data)
             self._status.setText("连接测试成功" if ok else "连接测试失败")
         except Exception as exc:
             self._status.setText(f"测试失败: {exc}")
 
     async def _on_connect(self) -> None:
-        self._on_save()
+        if not self._on_save():
+            return
         cred = self._build_credential()
         self._status.setText("连接中...")
         try:
-            await self._ctx.connection_manager.connect(cred)
-            symbol = self._ctx.config_manager.config.active_symbol
-            await self._ctx.market_manager.start_realtime(symbol)
-            await self._ctx.account_manager.refresh_account(symbol)
-            await self._ctx.trading_manager.refresh_orders(symbol)
-            self._status.setText("已连接")
+            result = await self._ctx.command_bus.execute(ConnectCommand(cred))
+            if result.success:
+                self._status.setText("已连接")
+            elif result.error:
+                self._status.setText(f"连接失败: {result.error.user_message}")
+                QMessageBox.warning(self, "连接失败", result.error.user_message)
         except Exception as exc:
             self._status.setText(f"连接失败: {exc}")
             QMessageBox.warning(self, "连接失败", str(exc))

@@ -6,6 +6,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QGroupBox, QTableWidget, QTableWidgetItem, QVBoxLayout
 
 from easiflux_desktop.core.context import AppContext
+from easiflux_desktop.core.state_store import PositionState
 from easiflux_desktop.models.trading import DesktopPosition
 
 
@@ -20,7 +21,8 @@ class PositionTable(QGroupBox):
         self._table.setHorizontalHeaderLabels(self.HEADERS)
         self._table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._table)
-        ctx.event_bus.subscribe("position.updated", self._on_position)
+        ctx.event_bus.subscribe("state.positions.updated", self._on_position_state)
+        self.set_positions(ctx.state_store.positions.position_list())
 
     def set_positions(self, positions: list[DesktopPosition]) -> None:
         self._table.setRowCount(len(positions))
@@ -40,10 +42,5 @@ class PositionTable(QGroupBox):
                     item.setForeground(QColor(pos.pnl_color))
                 self._table.setItem(row, col, item)
 
-    def _on_position(self, position: DesktopPosition) -> None:
-        positions = list(self._ctx.account_manager.positions)
-        existing = next((p for p in positions if p.symbol == position.symbol), None)
-        if existing:
-            positions.remove(existing)
-        positions.append(position)
-        self.set_positions(positions)
+    def _on_position_state(self, state: PositionState) -> None:
+        self.set_positions(state.position_list())

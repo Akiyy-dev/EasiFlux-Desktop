@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from easiflux_desktop.core.commands import PlaceOrderCommand
 from easiflux_desktop.core.context import AppContext
 from easiflux_desktop.models.trading import PlaceOrderRequest
 
@@ -73,8 +74,11 @@ class OrderPanel(QGroupBox):
 
     async def _place_order(self, request: PlaceOrderRequest) -> None:
         try:
-            order = await self._ctx.trading_manager.place_order(request)
-            self._status.setText(f"订单已提交: {order.order_id}")
+            result = await self._ctx.command_bus.execute(PlaceOrderCommand(request))
+            if result.success:
+                self._status.setText(f"订单已提交: {result.data.order_id}")
+            elif result.error:
+                self._status.setText(result.error.user_message)
         except Exception as exc:
             self._status.setText(str(exc))
         finally:

@@ -6,6 +6,7 @@ import asyncio
 
 from PySide6.QtWidgets import QMainWindow, QStatusBar, QTabWidget
 
+from easiflux_desktop.core.commands import ConnectCommand
 from easiflux_desktop.core.constants import APP_NAME
 from easiflux_desktop.core.context import AppContext
 from easiflux_desktop.views.account_view import AccountView
@@ -43,11 +44,7 @@ class MainWindow(QMainWindow):
 
     async def _auto_connect(self) -> None:
         try:
-            await self._ctx.connection_manager.connect()
-            symbol = self._ctx.config_manager.config.active_symbol
-            await self._ctx.market_manager.start_realtime(symbol)
-            await self._ctx.market_manager.get_klines(symbol)
-            await self._ctx.account_manager.refresh_account(symbol)
+            await self._ctx.command_bus.execute(ConnectCommand())
         except Exception:
             pass
 

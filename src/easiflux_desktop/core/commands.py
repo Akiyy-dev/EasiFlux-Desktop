@@ -58,8 +58,14 @@ class LoadKlinesCommand:
 
 
 @dataclass(frozen=True)
+class RefreshMarketCommand:
+    symbol: str | None = None
+
+
+@dataclass(frozen=True)
 class SetActiveSymbolCommand:
     symbol: str
+    refresh: bool = True
 
 
 @dataclass(frozen=True)

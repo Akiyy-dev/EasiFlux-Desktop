@@ -12,6 +12,7 @@ from easiflux_desktop.core.commands import (
     LoadKlinesCommand,
     PlaceOrderCommand,
     RefreshAccountCommand,
+    RefreshMarketCommand,
     RefreshOrdersCommand,
     SaveConnectionSettingsCommand,
     SetActiveSymbolCommand,
@@ -27,6 +28,8 @@ from easiflux_desktop.services.risk_manager import RiskConfig
 
 
 class FakeConnectionManager:
+    is_connected = True
+
     async def connect(self, credential=None):
         return True
 
@@ -37,16 +40,27 @@ class FakeConnectionManager:
 class FakeMarketManager:
     def __init__(self):
         self.active_symbol = "BTCUSDT"
-        self.realtime_started = False
+        self.realtime_started = []
+        self.realtime_stopped = 0
+        self.snapshots = []
 
     async def start_realtime(self, symbol):
-        self.realtime_started = symbol == "BTCUSDT"
+        self.realtime_started.append(symbol)
+
+    async def stop_realtime(self):
+        self.realtime_stopped += 1
+
+    async def refresh_snapshot(self, symbol=None):
+        snapshot = {"symbol": symbol or self.active_symbol}
+        self.snapshots.append(snapshot)
+        return snapshot
 
     async def get_klines(self, symbol=None, interval=None):
         return [symbol or self.active_symbol, interval or "1"]
 
     def set_active_symbol(self, symbol, *, persist=True):
         self.active_symbol = symbol
+        return symbol
 
 
 class FakeAccountManager:
@@ -72,6 +86,7 @@ class FakeConfigManager:
             active_symbol="BTCUSDT",
             kline_interval="1",
             use_websocket=True,
+            watchlist_symbols=["BTCUSDT", "ETHUSDT"],
         )
         self.saved_risk_config = None
 
@@ -144,8 +159,10 @@ async def test_app_context_registers_core_commands():
 
     assert (await command_bus.execute(TestConnectionCommand(object()))).success
     assert (await command_bus.execute(ConnectCommand())).success
-    assert market_manager.realtime_started
+    assert market_manager.realtime_started[-1] == "BTCUSDT"
+    assert market_manager.snapshots[-1] == {"symbol": "BTCUSDT"}
     assert (await command_bus.execute(LoadKlinesCommand(interval="5"))).data == ["BTCUSDT", "5"]
+    assert (await command_bus.execute(RefreshMarketCommand("BTCUSDT"))).data == {"symbol": "BTCUSDT"}
     assert (await command_bus.execute(RefreshAccountCommand("ETHUSDT"))).data == {"symbol": "ETHUSDT"}
     assert (await command_bus.execute(RefreshOrdersCommand("ETHUSDT"))).data == ["ETHUSDT"]
     settings = await command_bus.execute(SaveConnectionSettingsCommand(active_symbol="SOLUSDT", use_websocket=False))
@@ -160,6 +177,9 @@ async def test_app_context_registers_core_commands():
     assert (await command_bus.execute(PlaceOrderCommand(request))).data == request
     assert (await command_bus.execute(CancelOrderCommand("BTCUSDT", "1"))).data == ("BTCUSDT", "1")
     assert (await command_bus.execute(SetActiveSymbolCommand("ETHUSDT"))).data == "ETHUSDT"
+    assert market_manager.realtime_stopped == 1
+    assert market_manager.realtime_started[-1] == "ETHUSDT"
+    assert market_manager.snapshots[-1] == {"symbol": "ETHUSDT"}
     risk_config = RiskConfig(max_daily_orders=10)
     assert (await command_bus.execute(UpdateRiskConfigCommand(risk_config))).data == risk_config
     assert risk_manager.config == risk_config

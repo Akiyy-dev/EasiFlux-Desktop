@@ -11,10 +11,11 @@ def test_config_roundtrip(tmp_path: Path):
     store = ConfigStore(path=tmp_path / "config.toml")
     from easiflux_desktop.models.config import AppConfig
 
-    config = AppConfig(active_symbol="ETHUSDT", theme=ThemeMode.LIGHT)
+    config = AppConfig(active_symbol="ETHUSDT", watchlist_symbols=["ETHUSDT", "BTCUSDT"], theme=ThemeMode.LIGHT)
     store.save(config)
     loaded = store.load()
     assert loaded.active_symbol == "ETHUSDT"
+    assert loaded.watchlist_symbols == ["ETHUSDT", "BTCUSDT"]
     assert loaded.theme == ThemeMode.LIGHT
 
 

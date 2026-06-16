@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from easiflux_desktop.core.errors import ValidationError
 from easiflux_desktop.models.config import ApiCredential, AppConfig
 from easiflux_desktop.services.risk_manager import RiskConfig
 from easiflux_desktop.storage.config_store import ConfigStore
@@ -49,8 +50,14 @@ class ConfigManager:
         if credential is not None and (credential.api_key or credential.api_secret):
             self.set_credentials(account, credential)
 
-        self._config.active_symbol = active_symbol
+        symbol = active_symbol.strip().upper()
+        if not symbol:
+            raise ValidationError("交易对不能为空")
+        self._config.active_symbol = symbol
         self._config.use_websocket = use_websocket
+        if symbol and symbol not in self._config.watchlist_symbols:
+            self._config.watchlist_symbols.insert(0, symbol)
+            self._config.watchlist_symbols = self._config.watchlist_symbols[:20]
         self.save_config()
         return self._config
 

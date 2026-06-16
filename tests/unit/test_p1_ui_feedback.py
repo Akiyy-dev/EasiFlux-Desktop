@@ -4,12 +4,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from easiflux_desktop.core.commands import SetKlineIntervalCommand
+from easiflux_desktop.core.commands import RefreshMarketCommand, SetActiveSymbolCommand, SetKlineIntervalCommand
 from easiflux_desktop.core.event_bus import EventBus
 from easiflux_desktop.core.state_store import StateStore
 from easiflux_desktop.models.account import DesktopBalance
 from easiflux_desktop.models.market import DepthLevel, DesktopDepth, DesktopTicker
 from easiflux_desktop.views.account_view import AccountView
+from easiflux_desktop.views.market_view import MarketView
 from easiflux_desktop.widgets.kline_chart import KlineChart
 from easiflux_desktop.widgets.order_book import OrderBookWidget
 from easiflux_desktop.widgets.order_panel import OrderPanel
@@ -44,7 +45,10 @@ def _ctx():
         event_bus=event_bus,
         command_bus=FakeCommandBus(),
         config_manager=config_manager,
-        market_manager=SimpleNamespace(active_symbol=config_manager.config.active_symbol),
+        market_manager=SimpleNamespace(
+            active_symbol=config_manager.config.active_symbol,
+            watchlist_symbols=["BTCUSDT", "ETHUSDT"],
+        ),
         state_store=StateStore(
             event_bus,
             active_symbol=config_manager.config.active_symbol,
@@ -122,6 +126,45 @@ def test_kline_interval_change_dispatches_command(qapp):
 
     assert isinstance(ctx.command_bus.commands[-1], SetKlineIntervalCommand)
     assert ctx.command_bus.commands[-1].interval == "15"
+
+
+@pytest.mark.asyncio
+async def test_market_view_switch_symbol_dispatches_command(qapp):
+    ctx = _ctx()
+    ctx.command_bus = FakeCommandBus(SimpleNamespace(success=True, data="ETHUSDT", error=None))
+    view = MarketView(ctx)
+    view._symbol_combo.setCurrentText("ETHUSDT")
+
+    await view._switch_symbol()
+
+    command = ctx.command_bus.commands[-1]
+    assert isinstance(command, SetActiveSymbolCommand)
+    assert command.symbol == "ETHUSDT"
+    assert view._status.text() == "当前交易对: ETHUSDT"
+
+
+@pytest.mark.asyncio
+async def test_market_view_refresh_error_updates_status(qapp):
+    ctx = _ctx()
+    ctx.command_bus = FakeCommandBus(
+        SimpleNamespace(success=False, data=None, error=SimpleNamespace(user_message="未连接"))
+    )
+    view = MarketView(ctx)
+
+    await view._refresh_market()
+
+    assert isinstance(ctx.command_bus.commands[-1], RefreshMarketCommand)
+    assert view._status.text() == "行情刷新失败: 未连接"
+
+
+def test_order_panel_symbol_tracks_active_market_state(qapp):
+    ctx = _ctx()
+    panel = OrderPanel(ctx)
+
+    ctx.event_bus.publish("market.active_symbol_changed", "ETHUSDT")
+    qapp.processEvents()
+
+    assert panel._symbol.text() == "ETHUSDT"
 
 
 @pytest.mark.asyncio

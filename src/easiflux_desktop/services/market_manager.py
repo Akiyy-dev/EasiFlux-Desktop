@@ -42,6 +42,7 @@ class MarketManager:
         config = self._config_manager.config
         config.active_symbol = symbol
         self._config_manager.save_config()
+        self._event_bus.publish("market.active_symbol_changed", symbol)
 
     async def fetch_ticker(self, symbol: str | None = None) -> DesktopTicker:
         sym = symbol or self._active_symbol
@@ -61,6 +62,7 @@ class MarketManager:
         iv = interval or self._config_manager.config.kline_interval
         klines = await self._rest.get_klines(sym, iv, limit=limit)
         self._cache.set_klines(sym, iv, klines)
+        self._event_bus.publish("klines.loaded", {"symbol": sym, "interval": iv, "klines": klines})
         for kline in klines[-10:]:
             self._event_bus.publish("kline.updated", kline)
         return klines

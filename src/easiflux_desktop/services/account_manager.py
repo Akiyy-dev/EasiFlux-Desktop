@@ -39,12 +39,14 @@ class AccountManager:
 
     async def get_balances(self) -> list[DesktopBalance]:
         self._balances = await self._rest.get_balances()
+        self._event_bus.publish("balances.loaded", self._balances)
         for balance in self._balances:
             self._event_bus.publish("balance.updated", balance)
         return self._balances
 
     async def get_positions(self, symbol: str | None = None) -> list[DesktopPosition]:
         self._positions = await self._rest.get_positions(symbol)
+        self._event_bus.publish("positions.loaded", self._positions)
         for position in self._positions:
             self._event_bus.publish("position.updated", position)
         return self._positions

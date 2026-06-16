@@ -6,7 +6,9 @@ import asyncio
 
 from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
+from easiflux_desktop.core.commands import RefreshAccountCommand
 from easiflux_desktop.core.context import AppContext
+from easiflux_desktop.core.state_store import AccountState
 from easiflux_desktop.widgets.position_table import PositionTable
 
 
@@ -31,20 +33,20 @@ class AccountView(QGroupBox):
         self._position_table = PositionTable(ctx)
         layout.addWidget(self._position_table)
 
-        ctx.event_bus.subscribe("balance.updated", self._on_balance)
+        ctx.event_bus.subscribe("state.account.updated", self._on_account_state)
+        self._render_account_state(ctx.state_store.account)
 
     async def _refresh(self) -> None:
-        account = await self._ctx.account_manager.refresh_account(
-            self._ctx.market_manager.active_symbol
-        )
-        self._equity_label.setText(f"总权益: {account.total_equity_usd}")
-        if account.balances:
-            parts = [b.available_display for b in account.balances]
-            self._balance_label.setText("余额: " + " | ".join(parts))
-        positions = await self._ctx.account_manager.get_positions(
-            self._ctx.market_manager.active_symbol
-        )
-        self._position_table.set_positions(positions)
+        await self._ctx.command_bus.execute(RefreshAccountCommand(self._ctx.market_manager.active_symbol))
 
-    def _on_balance(self, balance) -> None:
-        self._balance_label.setText(f"余额: {balance.available_display}")
+    def _on_account_state(self, state: AccountState) -> None:
+        self._render_account_state(state)
+
+    def _render_account_state(self, state: AccountState) -> None:
+        self._equity_label.setText(f"总权益: {state.total_equity}")
+        balances = state.balance_list()
+        if balances:
+            parts = [balance.available_display for balance in balances]
+            self._balance_label.setText("余额: " + " | ".join(parts))
+        else:
+            self._balance_label.setText("余额: —")

@@ -16,7 +16,9 @@ from easiflux_desktop.core.commands import (
     PlaceOrderCommand,
     RefreshAccountCommand,
     RefreshOrdersCommand,
+    SaveConnectionSettingsCommand,
     SetActiveSymbolCommand,
+    SetKlineIntervalCommand,
     TestConnectionCommand,
     ToggleStrategyCommand,
     UpdateRiskConfigCommand,
@@ -141,6 +143,17 @@ class AppContext:
         async def _test_connection(command: TestConnectionCommand) -> bool:
             return await ctx.connection_manager.test_connection(command.credential)
 
+        async def _save_connection_settings(command: SaveConnectionSettingsCommand):
+            config = ctx.config_manager.save_connection_settings(
+                active_symbol=command.active_symbol,
+                use_websocket=command.use_websocket,
+                credential=command.credential,
+                account_id=command.account_id,
+            )
+            ctx.market_manager.set_active_symbol(command.active_symbol, persist=False)
+            ctx.event_bus.publish("config.updated", config, sticky=True)
+            return config
+
         async def _place_order(command: PlaceOrderCommand):
             return await ctx.trading_manager.place_order(command.request)
 
@@ -160,6 +173,11 @@ class AppContext:
         async def _set_active_symbol(command: SetActiveSymbolCommand) -> str:
             ctx.market_manager.set_active_symbol(command.symbol)
             return command.symbol
+
+        async def _set_kline_interval(command: SetKlineIntervalCommand):
+            config = ctx.config_manager.set_kline_interval(command.interval)
+            ctx.event_bus.publish("config.updated", config, sticky=True)
+            return await ctx.market_manager.get_klines(interval=command.interval)
 
         async def _update_risk_config(command: UpdateRiskConfigCommand):
             ctx.risk_manager.update_config(command.config)
@@ -184,12 +202,14 @@ class AppContext:
 
         command_bus.register(ConnectCommand, _connect)
         command_bus.register(TestConnectionCommand, _test_connection)
+        command_bus.register(SaveConnectionSettingsCommand, _save_connection_settings)
         command_bus.register(PlaceOrderCommand, _place_order)
         command_bus.register(CancelOrderCommand, _cancel_order)
         command_bus.register(RefreshOrdersCommand, _refresh_orders)
         command_bus.register(RefreshAccountCommand, _refresh_account)
         command_bus.register(LoadKlinesCommand, _load_klines)
         command_bus.register(SetActiveSymbolCommand, _set_active_symbol)
+        command_bus.register(SetKlineIntervalCommand, _set_kline_interval)
         command_bus.register(UpdateRiskConfigCommand, _update_risk_config)
         command_bus.register(ToggleStrategyCommand, _toggle_strategy)
         command_bus.register(ExportAnalyticsCommand, _export_analytics)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pyqtgraph as pg
 from PySide6.QtWidgets import QComboBox, QGroupBox, QHBoxLayout, QVBoxLayout
 
-from easiflux_desktop.core.commands import LoadKlinesCommand
+from easiflux_desktop.core.commands import SetKlineIntervalCommand
 from easiflux_desktop.core.constants import KLINE_INTERVALS
 from easiflux_desktop.core.context import AppContext
 from easiflux_desktop.core.state_store import MarketState
@@ -41,11 +41,7 @@ class KlineChart(QGroupBox):
         self.set_klines(ctx.state_store.market.kline_series(interval=ctx.config_manager.config.kline_interval))
 
     def _on_interval_changed(self, interval: str) -> None:
-        config = self._ctx.config_manager.config
-        config.kline_interval = interval
-        self._ctx.config_manager.save_config()
-        import asyncio
-        asyncio.create_task(self._ctx.command_bus.execute(LoadKlinesCommand(interval=interval)))
+        self._ctx.command_bus.execute_background(SetKlineIntervalCommand(interval=interval))
 
     def set_klines(self, klines: list[DesktopKline]) -> None:
         if not klines:

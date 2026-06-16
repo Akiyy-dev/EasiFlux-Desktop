@@ -37,6 +37,28 @@ class ConfigManager:
             self._config.accounts.append(account_id)
             self.save_config()
 
+    def save_connection_settings(
+        self,
+        *,
+        active_symbol: str,
+        use_websocket: bool,
+        credential: ApiCredential | None = None,
+        account_id: str | None = None,
+    ) -> AppConfig:
+        account = account_id or self._config.active_account_id
+        if credential is not None and (credential.api_key or credential.api_secret):
+            self.set_credentials(account, credential)
+
+        self._config.active_symbol = active_symbol
+        self._config.use_websocket = use_websocket
+        self.save_config()
+        return self._config
+
+    def set_kline_interval(self, interval: str) -> AppConfig:
+        self._config.kline_interval = interval
+        self.save_config()
+        return self._config
+
     def has_credentials(self, account_id: str | None = None) -> bool:
         account = account_id or self._config.active_account_id
         return self._credential_store.has_credentials(account)

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from easiflux_desktop.core.commands import ConnectCommand, SetActiveSymbolCommand, TestConnectionCommand
+from easiflux_desktop.core.commands import ConnectCommand, SaveConnectionSettingsCommand, TestConnectionCommand
 from easiflux_desktop.core.constants import DEFAULT_BASE_URL
 from easiflux_desktop.core.context import AppContext
 from easiflux_desktop.models.config import ApiCredential
@@ -76,24 +76,45 @@ class SettingsView(QGroupBox):
             base_url=self._base_url.text().strip() or DEFAULT_BASE_URL,
         )
 
-    def _on_save(self) -> bool:
+    def _build_save_command(self) -> SaveConnectionSettingsCommand:
         cred = self._build_credential()
+        credential = cred if cred.api_key or cred.api_secret else None
         account_id = self._ctx.config_manager.config.active_account_id
-        try:
-            if cred.api_key or cred.api_secret:
-                self._ctx.config_manager.set_credentials(account_id, cred)
+        return SaveConnectionSettingsCommand(
+            active_symbol=self._symbol.text().strip(),
+            use_websocket=self._use_ws.isChecked(),
+            credential=credential,
+            account_id=account_id,
+        )
 
-            config = self._ctx.config_manager.config
-            config.active_symbol = self._symbol.text().strip()
-            config.use_websocket = self._use_ws.isChecked()
-            self._ctx.config_manager.save_config()
-            self._ctx.command_bus.execute_background(SetActiveSymbolCommand(config.active_symbol))
-            self._status.setText("配置已保存")
+    def _on_save(self) -> bool:
+        try:
+            command = self._build_save_command()
+            self._set_busy(True, "保存中...")
+            self._ctx.command_bus.execute_background(command, self._on_save_complete)
             return True
         except Exception as exc:
             self._status.setText(f"保存失败: {exc}")
             QMessageBox.warning(self, "保存失败", str(exc))
             return False
+
+    def _on_save_complete(self, result) -> None:
+        self._set_busy(False)
+        if result.success:
+            self._status.setText("配置已保存")
+        elif result.error:
+            self._status.setText(f"保存失败: {result.error.user_message}")
+            QMessageBox.warning(self, "保存失败", result.error.user_message)
+
+    async def _save_settings(self) -> bool:
+        result = await self._ctx.command_bus.execute(self._build_save_command())
+        if result.success:
+            self._status.setText("配置已保存")
+            return True
+        if result.error:
+            self._status.setText(f"保存失败: {result.error.user_message}")
+            QMessageBox.warning(self, "保存失败", result.error.user_message)
+        return False
 
     async def _on_test(self) -> None:
         cred = self._build_credential()
@@ -109,7 +130,7 @@ class SettingsView(QGroupBox):
             self._set_busy(False)
 
     async def _on_connect(self) -> None:
-        if not self._on_save():
+        if not await self._save_settings():
             return
         cred = self._build_credential()
         self._set_busy(True, "连接中...")

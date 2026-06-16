@@ -23,6 +23,14 @@ class TestConnectionCommand:
 
 
 @dataclass(frozen=True)
+class SaveConnectionSettingsCommand:
+    active_symbol: str
+    use_websocket: bool
+    credential: ApiCredential | None = None
+    account_id: str | None = None
+
+
+@dataclass(frozen=True)
 class PlaceOrderCommand:
     request: PlaceOrderRequest
 
@@ -52,6 +60,11 @@ class LoadKlinesCommand:
 @dataclass(frozen=True)
 class SetActiveSymbolCommand:
     symbol: str
+
+
+@dataclass(frozen=True)
+class SetKlineIntervalCommand:
+    interval: str
 
 
 @dataclass(frozen=True)

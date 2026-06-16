@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from easiflux_desktop.core.context import AppContext
+from easiflux_desktop.core.state_store import MarketState
 from easiflux_desktop.models.market import DesktopTicker
 
 
@@ -27,9 +28,15 @@ class TickerBar(QWidget):
             layout.addWidget(widget)
         layout.addStretch()
 
-        ctx.event_bus.subscribe("ticker.updated", self._on_ticker)
+        ctx.event_bus.subscribe("state.market.updated", self._on_market_state)
+        self._render_ticker(ctx.state_store.market.ticker())
 
-    def _on_ticker(self, ticker: DesktopTicker) -> None:
+    def _on_market_state(self, state: MarketState) -> None:
+        self._render_ticker(state.ticker())
+
+    def _render_ticker(self, ticker: DesktopTicker | None) -> None:
+        if ticker is None:
+            return
         self._symbol.setText(ticker.symbol)
         self._last.setText(f"最新: {ticker.last_price}")
         self._bid.setText(f"买: {ticker.bid_price}")

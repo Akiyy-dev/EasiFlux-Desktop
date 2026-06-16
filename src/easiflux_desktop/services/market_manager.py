@@ -37,11 +37,12 @@ class MarketManager:
     def active_symbol(self) -> str:
         return self._active_symbol
 
-    def set_active_symbol(self, symbol: str) -> None:
+    def set_active_symbol(self, symbol: str, *, persist: bool = True) -> None:
         self._active_symbol = symbol
-        config = self._config_manager.config
-        config.active_symbol = symbol
-        self._config_manager.save_config()
+        if persist:
+            config = self._config_manager.config
+            config.active_symbol = symbol
+            self._config_manager.save_config()
         self._event_bus.publish("market.active_symbol_changed", symbol)
 
     async def fetch_ticker(self, symbol: str | None = None) -> DesktopTicker:

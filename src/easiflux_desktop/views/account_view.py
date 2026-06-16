@@ -20,15 +20,17 @@ class AccountView(QGroupBox):
 
         toolbar = QHBoxLayout()
         self._equity_label = QLabel("总权益: —")
-        refresh_btn = QPushButton("刷新")
-        refresh_btn.clicked.connect(lambda: asyncio.create_task(self._refresh()))
+        self._refresh_btn = QPushButton("刷新")
+        self._refresh_btn.clicked.connect(lambda: asyncio.create_task(self._refresh()))
         toolbar.addWidget(self._equity_label)
         toolbar.addStretch()
-        toolbar.addWidget(refresh_btn)
+        toolbar.addWidget(self._refresh_btn)
         layout.addLayout(toolbar)
 
         self._balance_label = QLabel("余额: —")
         layout.addWidget(self._balance_label)
+        self._status = QLabel("账户状态: 未刷新")
+        layout.addWidget(self._status)
 
         self._position_table = PositionTable(ctx)
         layout.addWidget(self._position_table)
@@ -37,7 +39,18 @@ class AccountView(QGroupBox):
         self._render_account_state(ctx.state_store.account)
 
     async def _refresh(self) -> None:
-        await self._ctx.command_bus.execute(RefreshAccountCommand(self._ctx.market_manager.active_symbol))
+        if not self._refresh_btn.isEnabled():
+            return
+        self._refresh_btn.setEnabled(False)
+        self._status.setText("账户状态: 刷新中...")
+        try:
+            result = await self._ctx.command_bus.execute(RefreshAccountCommand(self._ctx.market_manager.active_symbol))
+            if result.success:
+                self._status.setText("账户状态: 已刷新")
+            elif result.error:
+                self._status.setText(f"账户状态: 刷新失败 - {result.error.user_message}")
+        finally:
+            self._refresh_btn.setEnabled(True)
 
     def _on_account_state(self, state: AccountState) -> None:
         self._render_account_state(state)

@@ -46,15 +46,15 @@ class SettingsView(QGroupBox):
         layout.addLayout(form)
 
         btn_row = QHBoxLayout()
-        save_btn = QPushButton("保存")
-        save_btn.clicked.connect(self._on_save)
-        test_btn = QPushButton("测试连接")
-        test_btn.clicked.connect(lambda: asyncio.create_task(self._on_test()))
-        connect_btn = QPushButton("连接")
-        connect_btn.clicked.connect(lambda: asyncio.create_task(self._on_connect()))
-        btn_row.addWidget(save_btn)
-        btn_row.addWidget(test_btn)
-        btn_row.addWidget(connect_btn)
+        self._save_btn = QPushButton("保存")
+        self._save_btn.clicked.connect(self._on_save)
+        self._test_btn = QPushButton("测试连接")
+        self._test_btn.clicked.connect(lambda: asyncio.create_task(self._on_test()))
+        self._connect_btn = QPushButton("连接")
+        self._connect_btn.clicked.connect(lambda: asyncio.create_task(self._on_connect()))
+        btn_row.addWidget(self._save_btn)
+        btn_row.addWidget(self._test_btn)
+        btn_row.addWidget(self._connect_btn)
         layout.addLayout(btn_row)
 
         self._status = QLabel("")
@@ -97,6 +97,7 @@ class SettingsView(QGroupBox):
 
     async def _on_test(self) -> None:
         cred = self._build_credential()
+        self._set_busy(True, "测试中...")
         self._status.setText("测试中...")
         try:
             result = await self._ctx.command_bus.execute(TestConnectionCommand(cred))
@@ -104,11 +105,14 @@ class SettingsView(QGroupBox):
             self._status.setText("连接测试成功" if ok else "连接测试失败")
         except Exception as exc:
             self._status.setText(f"测试失败: {exc}")
+        finally:
+            self._set_busy(False)
 
     async def _on_connect(self) -> None:
         if not self._on_save():
             return
         cred = self._build_credential()
+        self._set_busy(True, "连接中...")
         self._status.setText("连接中...")
         try:
             result = await self._ctx.command_bus.execute(ConnectCommand(cred))
@@ -120,3 +124,12 @@ class SettingsView(QGroupBox):
         except Exception as exc:
             self._status.setText(f"连接失败: {exc}")
             QMessageBox.warning(self, "连接失败", str(exc))
+        finally:
+            self._set_busy(False)
+
+    def _set_busy(self, busy: bool, label: str | None = None) -> None:
+        self._save_btn.setEnabled(not busy)
+        self._test_btn.setEnabled(not busy)
+        self._connect_btn.setEnabled(not busy)
+        if label:
+            self._status.setText(label)

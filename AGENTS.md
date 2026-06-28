@@ -14,17 +14,18 @@ launch the app or run the test suite.
   `source .venv/bin/activate`.
 - Qt system libraries (libegl1, libgl1, libxcb-*, etc.) and `python3.12-venv` are
   pre-installed in the VM snapshot. They are NOT in the update script; if a fresh VM
-  is missing them, re-install per `.github/workflows/ci.yml` (Qt libs) and
+  is missing them, re-install per `.github/workflows/test.yml` (Qt libs) and
   `apt-get install -y python3.12-venv`.
 
 ### Lint / test / build / run (standard commands)
-- Lint: `ruff check src tests`
+- Lint: `ruff check src tests` and `ruff format --check src tests`
 - Tests: `QT_QPA_PLATFORM=offscreen pytest tests/ -v` — headless; `QT_QPA_PLATFORM=offscreen`
   is required since there is no implicit display in tests.
 - Run the GUI app (headless display is available at `DISPLAY=:1`):
   `DISPLAY=:1 QT_QPA_PLATFORM=xcb python -m easiflux_desktop` (or the `easiflux-desktop` entry point).
   For a non-GUI smoke check use `QT_QPA_PLATFORM=offscreen` instead.
-- Build (optional): `pyinstaller easiflux_desktop.spec`.
+- Build (optional): `python scripts/build.py --clean` or `pyinstaller easiflux_desktop.spec`.
+- CI workflows: `.github/workflows/test.yml`, `lint.yml`, `release.yml`.
 
 ### Non-obvious caveats
 - On startup the app logs `Keyring read failed: No recommended backend was available`.

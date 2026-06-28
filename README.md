@@ -35,10 +35,88 @@ See the architecture plan for full design documentation.
 
 ## Development
 
+Set up a virtual environment and install development dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor guide.
+
+## Testing
+
+```bash
+QT_QPA_PLATFORM=offscreen pytest tests/ -v
+```
+
+CI runs tests on every push and pull request via [`.github/workflows/test.yml`](.github/workflows/test.yml).
+
+## Linting
+
 ```bash
 ruff check src tests
-pytest tests/ -v
+ruff format --check src tests
 ```
+
+Apply formatting locally:
+
+```bash
+ruff format src tests
+```
+
+CI runs lint checks via [`.github/workflows/lint.yml`](.github/workflows/lint.yml).
+
+## Building
+
+Clean build artifacts:
+
+```bash
+python scripts/clean.py
+```
+
+Build a Windows executable locally with PyInstaller:
+
+```bash
+python scripts/build.py --clean
+python scripts/build.py --mode onefile --clean
+```
+
+Windows convenience script:
+
+```powershell
+./scripts/build_windows.ps1 -Mode onedir -Clean
+```
+
+Build outputs:
+
+- `dist/EasiFlux/EasiFlux.exe` (one-folder, default)
+- `dist/EasiFlux.exe` (single-file)
+
+Packaging specs:
+
+- `easiflux_desktop.spec` (one-folder)
+- `easiflux_desktop_onefile.spec` (single-file)
+
+See [docs/windows-packaging.md](docs/windows-packaging.md) for the packaging checklist.
+
+## Release
+
+Releases are automated when a version tag is pushed.
+
+1. Update `version` in `pyproject.toml`.
+2. Merge changes to `main`.
+3. Create and push a tag:
+
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+4. [`.github/workflows/release.yml`](.github/workflows/release.yml) builds on Windows, packages `EasiFlux-Windows.zip`, and creates a GitHub Release.
+
+Users can download the zip from the Release page, extract it, and run `EasiFlux.exe` without installing Python.
 
 ## License
 

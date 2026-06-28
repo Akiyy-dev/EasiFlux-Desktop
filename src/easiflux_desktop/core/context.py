@@ -94,11 +94,13 @@ class AppContext:
         multi_account_manager = MultiAccountManager(config_manager)
         analytics_service = AnalyticsService()
 
-        strategy_manager.register(GridStrategy(
-            symbol=config_manager.config.active_symbol,
-            grid_price="0",
-            qty="0.001",
-        ))
+        strategy_manager.register(
+            GridStrategy(
+                symbol=config_manager.config.active_symbol,
+                grid_price="0",
+                qty="0.001",
+            )
+        )
 
         ctx = cls(
             event_bus=event_bus,

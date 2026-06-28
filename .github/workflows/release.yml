@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Build Windows executable
+        run: python -m PyInstaller --noconfirm --clean easiflux_desktop.spec
+
+      - name: Verify build output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/EasiFlux/EasiFlux.exe")) {
+            throw "Build output not found: dist/EasiFlux/EasiFlux.exe"
+          }
+
+      - name: Package release archive
+        shell: pwsh
+        run: Compress-Archive -Path dist/EasiFlux -DestinationPath EasiFlux-Windows.zip -Force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: EasiFlux-Windows.zip
+          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}

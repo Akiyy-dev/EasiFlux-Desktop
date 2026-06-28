@@ -84,9 +84,7 @@ class OrderTable(QGroupBox):
                 cancel_btn = QPushButton("撤单")
                 oid = order.order_id
                 sym = order.symbol
-                cancel_btn.clicked.connect(
-                    lambda _=False, s=sym, o=oid: asyncio.create_task(self._cancel(s, o))
-                )
+                cancel_btn.clicked.connect(lambda _=False, s=sym, o=oid: asyncio.create_task(self._cancel(s, o)))
                 self._table.setCellWidget(row, 7, cancel_btn)
             else:
                 self._table.removeCellWidget(row, 7)
@@ -95,13 +93,16 @@ class OrderTable(QGroupBox):
     async def _cancel(self, symbol: str, order_id: str) -> None:
         if self._busy:
             return
-        if QMessageBox.question(
-            self,
-            "确认撤单",
-            f"确认撤销订单 {order_id}？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        ) != QMessageBox.StandardButton.Yes:
+        if (
+            QMessageBox.question(
+                self,
+                "确认撤单",
+                f"确认撤销订单 {order_id}？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
             self._status.setText("订单状态: 已取消撤单")
             return
 

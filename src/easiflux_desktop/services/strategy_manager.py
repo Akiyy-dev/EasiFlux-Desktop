@@ -17,12 +17,10 @@ logger = logging.getLogger(__name__)
 class Strategy(ABC):
     @property
     @abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     @abstractmethod
-    async def on_ticker(self, ticker: DesktopTicker) -> PlaceOrderRequest | None:
-        ...
+    async def on_ticker(self, ticker: DesktopTicker) -> PlaceOrderRequest | None: ...
 
 
 @dataclass

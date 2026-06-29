@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 def _resource_path() -> Path:
+    # PyInstaller onefile extracts files into sys._MEIPASS.
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        return Path(bundle_dir) / "resources"
     return Path(__file__).resolve().parents[2] / "resources"
 
 

@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    if: startsWith(github.event.release.tag_name, 'V')
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.target_commitish }}
+          fetch-depth: 0
+
+      - name: Resolve release version suffix
+        id: version
+        shell: pwsh
+        run: |
+          $target = '${{ github.event.release.target_commitish }}'
+          git fetch origin main
+
+          if ($target -eq 'main' -or (git branch -r --contains HEAD | Select-String -Pattern 'origin/main$')) {
+            $channel = 'release'
+            $channelSuffix = 'release'
+          } else {
+            $channel = 'beta'
+            $channelSuffix = 'beta'
+          }
+
+          $date = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
+          $baseTag = '${{ github.event.release.tag_name }}'
+          $version = $baseTag -replace '^[Vv]', ''
+          $fullName = "${version}.${date}-${channelSuffix}"
+
+          "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8NoBOM
+          "date=$date" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8NoBOM
+          "full_name=$fullName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8NoBOM
+          "archive_name=EasiFlux-Windows-$fullName.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8NoBOM
+
+          Write-Host "Release channel: $channel"
+          Write-Host "Release name: $fullName"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Build Windows executable
+        run: python -m PyInstaller --noconfirm --clean easiflux_desktop.spec
+
+      - name: Verify build output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/EasiFlux/EasiFlux.exe")) {
+            throw "Build output not found: dist/EasiFlux/EasiFlux.exe"
+          }
+
+      - name: Package release archive
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/EasiFlux -DestinationPath "${{ steps.version.outputs.archive_name }}" -Force
+
+      - name: Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          name: ${{ steps.version.outputs.full_name }}
+          files: ${{ steps.version.outputs.archive_name }}
+          generate_release_notes: true
+          append_body: true
+          body: |
+            Build channel: ${{ steps.version.outputs.channel }}
+            Build date: ${{ steps.version.outputs.date }}

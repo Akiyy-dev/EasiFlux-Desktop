@@ -51,9 +51,7 @@ class RiskManager:
             if reference_price > 0:
                 deviation = abs(price - reference_price) / reference_price * 100
                 if deviation > self._config.max_price_deviation_pct:
-                    raise RiskError(
-                        f"限价偏离市价 {deviation:.2f}%，超过限制 {self._config.max_price_deviation_pct}%"
-                    )
+                    raise RiskError(f"限价偏离市价 {deviation:.2f}%，超过限制 {self._config.max_price_deviation_pct}%")
 
         self._daily_order_count += 1
 

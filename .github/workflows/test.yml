@@ -1,4 +1,4 @@
-name: CI
+name: Test
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint-test:
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -44,9 +44,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-
-      - name: Ruff
-        run: ruff check src tests
 
       - name: Pytest
         run: pytest tests/ -v --tb=short

@@ -125,13 +125,16 @@ class OrderPanel(QGroupBox):
             f"价格: {price}\n"
             f"数量: {request.qty}\n\n确认提交订单？"
         )
-        return QMessageBox.question(
-            self,
-            "确认下单",
-            message,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        ) == QMessageBox.StandardButton.Yes
+        return (
+            QMessageBox.question(
+                self,
+                "确认下单",
+                message,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            == QMessageBox.StandardButton.Yes
+        )
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy

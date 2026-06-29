@@ -31,9 +31,14 @@ Windows convenience script:
 
 ## CI / Release Validation
 
-- `.github/workflows/release.yml` runs on tags matching `v*`.
+- `.github/workflows/release.yml` runs when a GitHub Release is published with a tag starting with `V` (for example `V0.1.0`).
 - Builds on `windows-latest` with PyInstaller (`easiflux_desktop.spec`).
-- Packages `dist/EasiFlux` into `EasiFlux-Windows.zip`.
-- Creates a GitHub Release and uploads the zip as a release asset.
+- Appends build metadata to the release name: `{version}.{YYYYMMDD}-{channel}`.
+  - example (beta): `0.1.0.20260628-beta`
+  - example (main): `0.1.0.20260628-release`
+  - `main` branch builds use channel suffix `release`
+  - non-`main` branch builds use channel suffix `beta`
+- Packages `dist/EasiFlux` into `EasiFlux-Windows-{version}.{date}-{channel}.zip`.
+- Uploads the zip to the same GitHub Release and updates the release title.
 
 Push/PR workflows (`test.yml`, `lint.yml`) do not depend on local `scripts/` helpers.

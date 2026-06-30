@@ -6,11 +6,34 @@ import asyncio
 from unittest.mock import patch
 
 import pytest
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow, QWidget
 from qasync import QEventLoop
 
 from easiflux_desktop.core.context import AppContext
 from easiflux_desktop.views.main_window import MainWindow
+
+_VIEW_NAMES = (
+    "MarketView",
+    "TradingView",
+    "AccountView",
+    "AnalyticsView",
+    "SettingsView",
+    "ConnectionStatusWidget",
+)
+
+
+@pytest.fixture
+def stub_widget(qapp):
+    return QWidget()
+
+
+@pytest.fixture
+def stub_main_window_views(stub_widget, monkeypatch):
+    for name in _VIEW_NAMES:
+        monkeypatch.setattr(
+            f"easiflux_desktop.views.main_window.{name}",
+            lambda *args, widget=stub_widget, **kwargs: widget,
+        )
 
 
 @pytest.fixture
@@ -20,15 +43,24 @@ def event_loop(qapp):
     yield loop
 
 
-def test_main_window_init_with_credentials_before_loop_runs(qapp, qtbot, event_loop):
+def test_main_window_defers_auto_connect_before_loop_runs(
+    qapp,
+    stub_main_window_views,
+    monkeypatch,
+):
     ctx = AppContext.create()
+    scheduled_callbacks: list[object] = []
+
+    def fake_single_shot(_delay, callback):
+        scheduled_callbacks.append(callback)
+
+    monkeypatch.setattr("easiflux_desktop.views.main_window.QTimer.singleShot", fake_single_shot)
 
     with patch.object(ctx.config_manager, "has_credentials", return_value=True):
         window = MainWindow(ctx)
-        window.show()
 
-    qtbot.addWidget(window)
-    assert window.isVisible()
+    assert len(scheduled_callbacks) == 1
+    assert scheduled_callbacks[0] == window._schedule_auto_connect
 
 
 def test_schedule_auto_connect_with_running_loop(qapp, event_loop):

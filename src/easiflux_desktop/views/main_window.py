@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMainWindow, QStatusBar, QTabWidget
 
 from easiflux_desktop.core.commands import ConnectCommand
@@ -40,7 +41,10 @@ class MainWindow(QMainWindow):
         ctx.event_bus.subscribe("error.occurred", self._on_error)
 
         if ctx.config_manager.has_credentials():
-            asyncio.create_task(self._auto_connect())
+            QTimer.singleShot(0, self._schedule_auto_connect)
+
+    def _schedule_auto_connect(self) -> None:
+        asyncio.create_task(self._auto_connect())
 
     async def _auto_connect(self) -> None:
         try:
@@ -56,5 +60,11 @@ class MainWindow(QMainWindow):
         config.window_width = self.width()
         config.window_height = self.height()
         self._ctx.config_manager.save_config()
-        asyncio.create_task(self._ctx.shutdown())
+        QTimer.singleShot(0, self._schedule_shutdown)
         super().closeEvent(event)
+
+    def _schedule_shutdown(self) -> None:
+        try:
+            asyncio.create_task(self._ctx.shutdown())
+        except RuntimeError:
+            pass

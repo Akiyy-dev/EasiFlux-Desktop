@@ -81,12 +81,14 @@ Windows convenience script:
 
 1. Update `version` in `pyproject.toml`.
 2. Merge changes into `main`.
-3. Create a GitHub Release with a tag starting with `V` (for example `V0.1.0`).
+3. Create a GitHub Release with a tag starting with `V` (for example `V0.1.0`), and select the target branch explicitly:
+   - `main` for stable releases
+   - `dev` or another branch for beta releases
 
 4. GitHub Actions (`.github/workflows/release.yml`) will:
    - Build the Windows executable with PyInstaller
    - Rename the release to `{version}.{YYYYMMDD}-{channel}` (for example `0.1.0.20260628-beta`)
-   - Use channel `release` when the release commit is on `main`, otherwise `beta`
+   - Use channel `release` only when the Release target branch is `main`; all other branch names use `beta`
    - Upload `EasiFlux-Windows-{full-release-name}.zip` to the release
 
 Users can download the zip from the Release page, extract it, and run `EasiFlux.exe` without installing Python.

@@ -112,8 +112,9 @@ Releases are automated when a GitHub Release is published with a tag starting wi
 4. [`.github/workflows/release.yml`](.github/workflows/release.yml) builds on Windows and updates the release name to `{version}.{YYYYMMDD}-{channel}`:
    - example (beta): `0.1.0.20260628-beta`
    - example (main): `0.1.0.20260628-release`
-   - `main` branch → `release`
-   - other branches → `beta`
+   - create the Release from the `main` branch → `release`
+   - create the Release from any other branch (for example `dev`) → `beta`
+   - channel is determined from the Release target branch (`target_commitish`), not from whether the commit also exists on `main`
 5. Uploads `EasiFlux-Windows-{full-release-name}.zip` to the release.
 
 Users can download the zip from the Release page, extract it, and run `EasiFlux.exe` without installing Python.

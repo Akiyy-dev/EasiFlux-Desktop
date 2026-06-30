@@ -2,6 +2,8 @@
 
 Professional cryptocurrency contract trading desktop client built on [EasiFlux-SDK](https://github.com/Akiyy-dev/EasiFlux-SDK).
 
+> **Note:** A next-generation client is under active development using **Tauri + Rust + Vue 3** in the sibling repository **[EasiFlux-Desktop-Tauri](https://github.com/Akiyy-dev/EasiFlux-Desktop-Tauri)**. This repository remains the legacy Python/PySide6 implementation and is preserved for reference.
+
 ## Requirements
 
 - Python 3.10+

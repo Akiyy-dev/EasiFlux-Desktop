@@ -36,8 +36,9 @@ Windows convenience script:
 - Appends build metadata to the release name: `{version}.{YYYYMMDD}-{channel}`.
   - example (beta): `0.1.0.20260628-beta`
   - example (main): `0.1.0.20260628-release`
-  - `main` branch builds use channel suffix `release`
-  - non-`main` branch builds use channel suffix `beta`
+  - Release target branch `main` → channel suffix `release`
+  - any other Release target branch (for example `dev`) → channel suffix `beta`
+  - if GitHub provides a commit SHA instead of a branch name, `beta` is used unless only `origin/main` points at that commit
 - Packages `dist/EasiFlux` into `EasiFlux-Windows-{version}.{date}-{channel}.zip`.
 - Uploads the zip to the same GitHub Release and updates the release title.
 

@@ -23,11 +23,23 @@ jobs:
         shell: pwsh
         run: |
           $target = '${{ github.event.release.target_commitish }}'
-          git fetch origin main
+          Write-Host "Release target_commitish: $target"
 
-          if ($target -eq 'main' -or (git branch -r --contains HEAD | Select-String -Pattern 'origin/main$')) {
+          if ($target -eq 'main') {
             $channel = 'release'
             $channelSuffix = 'release'
+          } elseif ($target -match '^[0-9a-f]{7,}$') {
+            git fetch origin main dev
+            $branchesAtHead = @(git branch -r --points-at HEAD | ForEach-Object { $_.Trim() } | Where-Object { $_ -notmatch 'origin/HEAD' })
+            Write-Host "Branches at HEAD: $($branchesAtHead -join ', ')"
+
+            if ($branchesAtHead -contains 'origin/main' -and $branchesAtHead.Count -eq 1) {
+              $channel = 'release'
+              $channelSuffix = 'release'
+            } else {
+              $channel = 'beta'
+              $channelSuffix = 'beta'
+            }
           } else {
             $channel = 'beta'
             $channelSuffix = 'beta'
